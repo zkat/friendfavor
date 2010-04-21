@@ -105,10 +105,6 @@
   (flet ((relevant-transaction-p (transaction)
            (when (eq (slot-value transaction 'target) target)
              t))
-         (transaction-value (transaction)
-           (ecase (class-name (class-of transaction))
-             (@favor 1)
-             (@disfavor -1)))
 	 (geometric-sum (first-term common-ratio num-terms)
 	   "sum of a + ar + ar^2 + ... + ar^(n-1)"
 	   (/ (* first-term (- 1 (expt common-ratio num-terms)))
