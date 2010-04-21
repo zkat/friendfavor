@@ -109,8 +109,10 @@
            (ecase (class-name (class-of transaction))
              (@favor 1)
              (@disfavor -1)))
-	 (geometric-sum (a r n) "sum of a + ar + ar^2 + ... + ar^(n-1)"
-	   (/ (* a (- 1 (expt r n))) (- 1 r))))
+	 (geometric-sum (first-term common-ratio num-terms)
+	   "sum of a + ar + ar^2 + ... + ar^(n-1)"
+	   (/ (* first-term (- 1 (expt common-ratio num-terms)))
+	      (- 1 common-ratio))))
     (let* ((relevant-transactions (remove-if-not #'relevant-transaction-p
                                                  (slot-value judge 'transactions)))
            (favors (remove-if-not (lambda (txn) (eq '@favor (class-name (class-of txn))))
