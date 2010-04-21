@@ -108,21 +108,18 @@
          (transaction-value (transaction)
            (ecase (class-name (class-of transaction))
              (@favor 1)
-             (@disfavor -1))))
+             (@disfavor -1)))
+	 (geometric-sum (a r n) "sum of a + ar + ar^2 + ... + ar^(n-1)"
+	   (/ (* a (- 1 (expt r n))) (- 1 r))))
     (let* ((relevant-transactions (remove-if-not #'relevant-transaction-p
                                                  (slot-value judge 'transactions)))
            (favors (remove-if-not (lambda (txn) (eq '@favor (class-name (class-of txn))))
                                   relevant-transactions))
            (disfavors (remove-if-not (lambda (txn) (eq '@disfavor (class-name (class-of txn))))
-                                     relevant-transactions)))
-      (labels ((rec (txns decay-factor)
-                 (if txns
-                     (+ (* (transaction-value (car txns))
-                           decay-factor)
-                        (rec (cdr txns) (/ decay-factor 2)))
-                     0)))
-        (+ (+ (if favors 1 0) (rec (cdr favors) decay-factor))
-           (+ (if disfavors -1 0) (rec (cdr disfavors) decay-factor)))))))
+                                     relevant-transactions))
+	   (favor-value (geometric-sum 1 decay-factor (length favors)))
+	   (disfavor-value (geometric-sum 1 decay-factor (length disfavors))))
+      (- favor-value disfavor-value))))
 
 (defmethod global-favor ((pc pc) (from-date time) (to-date time))
   ;; todo
