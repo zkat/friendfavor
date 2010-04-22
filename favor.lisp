@@ -84,19 +84,70 @@
                              :target target)
               *all-transactions*))))
 
-(defgeneric node-neighbors (node)
-  (:method ((node pc))
-    (mapcar (lambda (transaction)
-              (slot-value transaction 'target))
-            (remove-duplicates (slot-value node 'transactions)
-                               :key (lambda (txn) (slot-value txn 'target))))))
+(defun node-neighbors (node target)
+  (remove-duplicates
+   (mapcar (lambda (txn) (slot-value txn 'target))
+           (remove-if-not (lambda (txn)
+                            (and (if (eq target (slot-value txn 'target))
+                                     t
+                                     (@favorp txn))
+                                 (eq node (slot-value txn 'source))))
+                          *all-transactions*))))
 
 (defun relevant-time-p (time upper-bound lower-bound)
   (apply #'> (mapcar #'time-universal-time (list upper-bound time lower-bound))))
 
+(defun dijkstra (graph source target)
+  (let ((distances (make-hash-table :test 'eq))
+        (previous (make-hash-table :test 'eq)))
+
+    (loop for node in graph do
+         (setf (gethash node distances) nil))
+
+    ;; Distance from source to source
+    (setf (gethash source distances) 0)
+
+    (flet ((smallest-distance ()
+             (let (smallest smallest-value)
+               (maphash (lambda (k v)
+                          (when (find k graph)
+                            (cond ((and (numberp v)
+                                        (numberp smallest-value)
+                                        (> smallest-value v))
+                                   (setf smallest k smallest-value v))
+                                  ((and (numberp v)
+                                        (null smallest-value))
+                                   (setf smallest k smallest-value v))
+                                  ((null smallest)
+                                   (setf smallest k smallest-value v))
+                                  (t nil))))
+                        distances)
+               smallest)))
+      (loop while graph
+         for node = (smallest-distance)
+         do (setf graph (remove node graph))
+         when (gethash node distances)
+         do (loop for neighbor in (node-neighbors node target)
+               do (let ((node-distance (gethash node distances))
+                        (neighbor-distance (gethash neighbor distances)))
+                    (when (or (not (or node-distance neighbor-distance))
+                              (and node-distance (null neighbor-distance))
+                              (< (1+ node-distance)
+                                 neighbor-distance))
+                      (setf (gethash neighbor distances) node-distance
+                            (gethash neighbor previous) node)))))
+      (values distances previous))))
+
 (defun shortest-path (graph source target)
-  ;; todo
-  )
+  (multiple-value-bind (distances previous)
+      (dijkstra graph source target)
+    (declare (ignore distances))
+    (loop with list = nil
+       with u = target
+       while (gethash u previous)
+       do (push u list)
+         (setf u (gethash u previous))
+       finally (return (when list (cons source list))))))
 
 (defun all-paths (graph source target)
   (loop for shortest = (shortest-path graph source target)
