@@ -3,6 +3,7 @@
 (in-package :favor)
 
 (defvar *all-pcs* '())
+(defvar *all-transactions* '())
 
 (defstruct (time (:constructor %make-time
                                (universal-time second minute
@@ -16,8 +17,7 @@
 
 (defclass pc ()
   ((name :initarg :name
-         :initform (error "PC must be initialized with a name."))
-   (transactions :initform nil)))
+         :initform (error "PC must be initialized with a name."))))
 (defmethod initialize-instance :after ((pc pc) &key)
   (if (find (slot-value pc 'name) *all-pcs* :key (lambda (pc) (slot-value pc 'name))
             :test #'string-equal)
@@ -41,9 +41,21 @@
    (target :initform (error "Transaction must be given a target PC.")
            :initarg :target)))
 
+(defmethod print-object ((obj transaction) stream)
+  (print-unreadable-object (obj stream :type t :identity t)
+    (let ((from (slot-value (slot-value obj 'source)'name))
+          (to  (slot-value (slot-value obj 'target)'name)))
+      (format stream "From: ~A, To: ~A" from to))))
+
 (defclass @favor (transaction) ())
+(defgeneric @favorp (obj)
+  (:method ((obj t)) nil)
+  (:method ((obj @favor)) t))
 
 (defclass @disfavor (transaction) ())
+(defgeneric @disfavorp (obj)
+  (:method ((obj t)) nil)
+  (:method ((obj @disfavor)) t))
 
 (defgeneric global-favor (pc from-date to-date)
   (:documentation "Returns the global favor accumulated by PC between FROM-DATE and TO-DATE."))
@@ -60,7 +72,7 @@
                              :description description
                              :source actor
                              :target target)
-              (slot-value actor 'transactions)))))
+              *all-transactions*))))
 
 (defgeneric @disfavor (actor target &optional description)
   (:method ((actor pc) (target pc) &optional (description "No description."))
@@ -70,7 +82,7 @@
                              :description description
                              :source actor
                              :target target)
-              (slot-value actor 'transactions)))))
+              *all-transactions*))))
 
 (defgeneric node-neighbors (node)
   (:method ((node pc))
@@ -103,18 +115,17 @@
 
 (defun direct-favor (judge target decay-factor)
   (flet ((relevant-transaction-p (transaction)
-           (when (eq (slot-value transaction 'target) target)
+           (when (and (eq (slot-value transaction 'target) target)
+                      (eq (slot-value transaction 'source) judge))
              t))
 	 (geometric-sum (first-term common-ratio num-terms)
 	   "sum of a + ar + ar^2 + ... + ar^(n-1)"
 	   (/ (* first-term (- 1 (expt common-ratio num-terms)))
 	      (- 1 common-ratio))))
     (let* ((relevant-transactions (remove-if-not #'relevant-transaction-p
-                                                 (slot-value judge 'transactions)))
-           (favors (remove-if-not (lambda (txn) (eq '@favor (class-name (class-of txn))))
-                                  relevant-transactions))
-           (disfavors (remove-if-not (lambda (txn) (eq '@disfavor (class-name (class-of txn))))
-                                     relevant-transactions))
+                                                 *all-transactions*))
+           (favors (remove-if-not #'@favorp relevant-transactions))
+           (disfavors (remove-if-not #'@disfavorp relevant-transactions))
 	   (favor-value (geometric-sum 1 decay-factor (length favors)))
 	   (disfavor-value (geometric-sum 1 decay-factor (length disfavors))))
       (- favor-value disfavor-value))))
