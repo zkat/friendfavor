@@ -169,16 +169,16 @@
            (when (and (eq (slot-value transaction 'target) target)
                       (eq (slot-value transaction 'source) judge))
              t))
-	 (geometric-sum (first-term common-ratio num-terms)
-	   "sum of a + ar + ar^2 + ... + ar^(n-1)"
-	   (/ (* first-term (- 1 (expt common-ratio num-terms)))
-	      (- 1 common-ratio))))
+     (geometric-sum (first-term common-ratio num-terms)
+       "sum of a + ar + ar^2 + ... + ar^(n-1)"
+       (/ (* first-term (- 1 (expt common-ratio num-terms)))
+          (- 1 common-ratio))))
     (let* ((relevant-transactions (remove-if-not #'relevant-transaction-p
                                                  *all-transactions*))
            (favors (remove-if-not #'@favorp relevant-transactions))
            (disfavors (remove-if-not #'@disfavorp relevant-transactions))
-	   (favor-value (geometric-sum 1 decay-factor (length favors)))
-	   (disfavor-value (geometric-sum 1 decay-factor (length disfavors))))
+       (favor-value (geometric-sum 1 decay-factor (length favors)))
+       (disfavor-value (geometric-sum 1 decay-factor (length disfavors))))
       (- favor-value disfavor-value))))
 
 (defmethod global-favor ((pc pc) (from-date time) (to-date time))
