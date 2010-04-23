@@ -85,14 +85,13 @@
               *all-transactions*))))
 
 (defun node-neighbors (node target exclusion-function)
-  ;; TODO: If I don't count origin->target, I can do the repeated-dijkstra trick
   (remove-duplicates
    (mapcar (lambda (txn) (slot-value txn 'target))
            (remove-if-not (lambda (txn)
                             (and (eq node (slot-value txn 'source))
                                  (if (eq target (slot-value txn 'target))
                                      t
-                                     (@favorp txn))
+                                     (not (minusp (direct-favor node target 1/2))))
                                  (not (funcall exclusion-function txn))))
                           *all-transactions*))))
 
@@ -155,7 +154,7 @@
        finally (return (when list (cons source list))))))
 
 (defun all-indirect-paths (graph source target)
-  (loop for shortest = (shortest-path graph source target)
+  (loop for shortest = (shortest-indirect-path graph source target)
      while shortest
      do (setf graph (remove (car (last (butlast shortest))) graph))
      collect shortest))
@@ -212,7 +211,6 @@
     (reduce #'+ (cons (direct-favor specimen observer 1/2)
                      (mapcar (lambda (path) (path-favor path 1/2))
                              (all-indirect-paths *all-pcs* specimen observer))))))
-
 
 (defun test-init ()
   (flet ((make-pc (name)
