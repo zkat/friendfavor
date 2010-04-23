@@ -84,14 +84,16 @@
                              :target target)
               *all-transactions*))))
 
-(defun node-neighbors (node target)
+(defun node-neighbors (node target exclusion-function)
+  ;; TODO: If I don't count origin->target, I can do the repeated-dijkstra trick
   (remove-duplicates
    (mapcar (lambda (txn) (slot-value txn 'target))
            (remove-if-not (lambda (txn)
-                            (and (if (eq target (slot-value txn 'target))
+                            (and (eq node (slot-value txn 'source))
+                                 (if (eq target (slot-value txn 'target))
                                      t
                                      (@favorp txn))
-                                 (eq node (slot-value txn 'source))))
+                                 (not (funcall exclusion-function txn))))
                           *all-transactions*))))
 
 (defun relevant-time-p (time upper-bound lower-bound)
@@ -127,7 +129,10 @@
          for node = (smallest-distance)
          do (setf graph (remove node graph))
          when (gethash node distances)
-         do (loop for neighbor in (node-neighbors node target)
+         do (loop for neighbor in (node-neighbors node target
+                                                  (lambda (txn)
+                                                    (and (eq source (slot-value txn 'source))
+                                                         (eq target (slot-value txn 'target)))))
                do (let ((node-distance (gethash node distances))
                         (neighbor-distance (gethash neighbor distances)))
                     (when (or (not (or node-distance neighbor-distance))
@@ -138,7 +143,7 @@
                             (gethash neighbor previous) node)))))
       (values distances previous))))
 
-(defun shortest-path (graph source target)
+(defun shortest-indirect-path (graph source target)
   (multiple-value-bind (distances previous)
       (dijkstra graph source target)
     (declare (ignore distances))
@@ -149,7 +154,7 @@
          (setf u (gethash u previous))
        finally (return (when list (cons source list))))))
 
-(defun all-paths (graph source target)
+(defun all-indirect-paths (graph source target)
   (loop for shortest = (shortest-path graph source target)
      while shortest
      do (setf graph (remove (car (last (butlast shortest))) graph))
@@ -181,13 +186,33 @@
        (disfavor-value (geometric-sum 1 decay-factor (length disfavors))))
       (- favor-value disfavor-value))))
 
+(defun clamp-transactions (txn-list from to)
+  (remove-if-not (lambda (txn)
+                   (> (time-universal-time to)
+                      (time-universal-time (slot-value txn 'time))
+                      (time-universal-time from)))
+                 txn-list))
+
 (defmethod global-favor ((pc pc) (from-date time) (to-date time))
-  ;; todo
-  )
+  (let* ((*all-transactions* (clamp-transactions *all-transactions* from-date to-date))
+         (relevant-transactions (remove-if-not
+                                 (lambda (txn)
+                                   (eq pc (slot-value txn 'target)))
+                                 *all-transactions*)))
+    (reduce #'+ (mapcar (lambda (txn)
+                          (direct-favor (slot-value txn 'source)
+                                        pc
+                                        1/2))
+                        (remove-duplicates relevant-transactions
+                                           :key (lambda (txn)
+                                                  (slot-value txn 'source)))))))
 
 (defmethod relative-favor ((specimen pc) (observer pc) (from time) (to time))
-  ;; todo
-  )
+  (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
+    (reduce #'+ (cons (direct-favor specimen observer 1/2)
+                     (mapcar (lambda (path) (path-favor path 1/2))
+                             (all-indirect-paths *all-pcs* specimen observer))))))
+
 
 (defun test-init ()
   (flet ((make-pc (name)
