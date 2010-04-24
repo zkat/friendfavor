@@ -98,7 +98,7 @@
 (defun relevant-time-p (time upper-bound lower-bound)
   (apply #'> (mapcar #'time-universal-time (list upper-bound time lower-bound))))
 
-(defun dijkstra (graph source target)
+(defun dijkstra (graph source target exclusion-func)
   (let ((distances (make-hash-table :test 'eq))
         (previous (make-hash-table :test 'eq)))
 
@@ -128,10 +128,7 @@
          for node = (smallest-distance)
          do (setf graph (remove node graph))
          when (gethash node distances)
-         do (loop for neighbor in (node-neighbors node target
-                                                  (lambda (txn)
-                                                    (and (eq source (slot-value txn 'source))
-                                                         (eq target (slot-value txn 'target)))))
+         do (loop for neighbor in (node-neighbors node target exclusion-func)
                do (let ((node-distance (gethash node distances))
                         (neighbor-distance (gethash neighbor distances)))
                     (when (or (not (or node-distance neighbor-distance))
@@ -142,9 +139,10 @@
                             (gethash neighbor previous) node)))))
       (values distances previous))))
 
-(defun shortest-indirect-path (graph source target)
+(defun shortest-indirect-path (graph source target exclusion-func)
   (multiple-value-bind (distances previous)
-      (dijkstra graph source target)
+      (dijkstra graph source target exclusion-func
+)
     (declare (ignore distances))
     (loop with list = nil
        with u = target
@@ -153,8 +151,8 @@
          (setf u (gethash u previous))
        finally (return (when list (cons source list))))))
 
-(defun all-indirect-paths (graph source target)
-  (loop for shortest = (shortest-indirect-path graph source target)
+(defun all-indirect-paths (graph source target exclusion-func)
+  (loop for shortest = (shortest-indirect-path graph source target exclusion-func)
      while shortest
      do (setf graph (remove (car (last (butlast shortest))) graph))
      collect shortest))
@@ -206,11 +204,14 @@
                                            :key (lambda (txn)
                                                   (slot-value txn 'source)))))))
 
-(defmethod relative-favor ((specimen pc) (observer pc) (from time) (to time))
+(defmethod right-handed-favor ((specimen pc) (observer pc) (from time) (to time))
   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
     (reduce #'+ (cons (direct-favor specimen observer 1/2)
                      (mapcar (lambda (path) (path-favor path 1/2))
-                             (all-indirect-paths *all-pcs* specimen observer))))))
+                             (all-indirect-paths *all-pcs* specimen observer
+                                                 (lambda (txn)
+                                                   (and (eq observer (slot-value txn 'source))
+                                                        (eq specimen (slot-value txn 'target))))))))))
 
 (defun test-init ()
   (flet ((make-pc (name)
