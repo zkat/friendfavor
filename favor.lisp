@@ -153,13 +153,14 @@
      do (setf graph (remove (car (last (butlast shortest))) graph))
      collect shortest))
 
+(defparameter *distance-decay-factor* 1)
 (defun path-favor (path transaction-decay)
   (if (or (null path) (= 1 (length path)))
       (error "Invalid path ~S" path)
       (let ((judge (car (last (butlast path))))
             (target (car (last path))))
         (let ((unweighted (direct-favor judge target transaction-decay))
-              (weight (1- (length path))))
+              (weight (* *distance-decay-factor* (1- (length path)))))
           (/ unweighted weight)))))
 
 (defun direct-favor (judge target decay-factor)
@@ -186,6 +187,8 @@
                       (time-universal-time from)))
                  txn-list))
 
+(defparameter *decay* 1/2)
+
 (defmethod global-favor ((pc pc) (from-date time) (to-date time))
   (let* ((*all-transactions* (clamp-transactions *all-transactions* from-date to-date))
          (relevant-transactions (remove-if-not
@@ -195,17 +198,17 @@
     (reduce #'+ (mapcar (lambda (txn)
                           (direct-favor (slot-value txn 'source)
                                         pc
-                                        1/2))
+                                        *decay*))
                         (remove-duplicates relevant-transactions
                                            :key (lambda (txn)
                                                   (slot-value txn 'source)))))))
 
 (defun relative-favor (observer specimen from to inclusion-function)
   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
-    (reduce #'+ (cons (direct-favor observer specimen 1/2)
-                      (mapcar (lambda (path) (path-favor path 1/2))
-                              (print (all-indirect-paths *all-pcs* observer specimen
-                                                         inclusion-function)))))))
+    ;; To include someone's direct favor, (cons (direct-favor observer specimen 1/2 (mapcar ... )))
+    (reduce #'+ (mapcar (lambda (path) (path-favor path *decay*))
+                        (print (all-indirect-paths *all-pcs* observer specimen
+                                                   inclusion-function))))))
 
 (defmethod right-handed-favor ((observer pc) (specimen pc) (from time) (to time))
   (relative-favor observer specimen from to
@@ -213,7 +216,7 @@
                     (and (eq node (slot-value txn 'source))
                          (if (eq specimen (slot-value txn 'target))
                              t
-                             (plusp (direct-favor node (slot-value txn 'target) 1/2)))
+                             (plusp (direct-favor node (slot-value txn 'target) *decay*)))
                          (not (and (eq observer (slot-value txn 'source))
                                    (eq specimen (slot-value txn 'target))))))))
 
@@ -224,11 +227,11 @@
                   (lambda (node txn)
                     (if (eq observer (slot-value txn 'source))
                         (unless (eq specimen (slot-value txn 'target))
-                          (minusp (direct-favor node (slot-value txn 'target) 1/2)))
+                          (minusp (direct-favor node (slot-value txn 'target) *decay*)))
                         (and (eq node (slot-value txn 'source))
                              (if (eq specimen (slot-value txn 'target))
                                  t
-                                 (plusp (direct-favor node (slot-value txn 'target) 1/2)))
+                                 (plusp (direct-favor node (slot-value txn 'target) *decay*)))
                              (not (and (eq observer (slot-value txn 'source))
                                        (eq specimen (slot-value txn 'target)))))))))
 
