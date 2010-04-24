@@ -213,7 +213,7 @@
                     (and (eq node (slot-value txn 'source))
                          (if (eq specimen (slot-value txn 'target))
                              t
-                             (not (minusp (direct-favor node (slot-value txn 'target) 1/2))))
+                             (plusp (direct-favor node (slot-value txn 'target) 1/2)))
                          (not (and (eq observer (slot-value txn 'source))
                                    (eq specimen (slot-value txn 'target))))))))
 
@@ -224,11 +224,11 @@
                   (lambda (node txn)
                     (if (eq observer (slot-value txn 'source))
                         (unless (eq specimen (slot-value txn 'target))
-                          (not (plusp (direct-favor node (slot-value txn 'target) 1/2))))
+                          (minusp (direct-favor node (slot-value txn 'target) 1/2)))
                         (and (eq node (slot-value txn 'source))
                              (if (eq specimen (slot-value txn 'target))
                                  t
-                                 (not (minusp (direct-favor node (slot-value txn 'target) 1/2))))
+                                 (plusp (direct-favor node (slot-value txn 'target) 1/2)))
                              (not (and (eq observer (slot-value txn 'source))
                                        (eq specimen (slot-value txn 'target)))))))))
 
