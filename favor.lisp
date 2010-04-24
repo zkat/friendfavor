@@ -60,9 +60,10 @@
 (defgeneric global-favor (pc from-date to-date)
   (:documentation "Returns the global favor accumulated by PC between FROM-DATE and TO-DATE."))
 
-(defgeneric relative-favor (specimen observer from-date to-date)
+(defgeneric right-handed-favor (observer specimen from-date to-date)
   (:documentation "Returns the relative favor for SPECIMEN as seen by OBSERVER,
  between FROM-DATE and TO-DATE."))
+(defgeneric left-handed-favor (observer specimen from to))
 
 (defgeneric @favor (actor target &optional description)
   (:method ((actor pc) (target pc) &optional (description "No description."))
@@ -87,12 +88,11 @@
 (defun node-neighbors (node target exclusion-function)
   (remove-duplicates
    (mapcar (lambda (txn) (slot-value txn 'target))
+           (remove-if (lambda (txn)
+                        (funcall exclusion-function node txn))
+                      *all-transactions*)
            (remove-if-not (lambda (txn)
-                            (and (eq node (slot-value txn 'source))
-                                 (if (eq target (slot-value txn 'target))
-                                     t
-                                     (not (minusp (direct-favor node target 1/2))))
-                                 (not (funcall exclusion-function txn))))
+)
                           *all-transactions*))))
 
 (defun relevant-time-p (time upper-bound lower-bound)
@@ -141,8 +141,7 @@
 
 (defun shortest-indirect-path (graph source target exclusion-func)
   (multiple-value-bind (distances previous)
-      (dijkstra graph source target exclusion-func
-)
+      (dijkstra graph source target exclusion-func)
     (declare (ignore distances))
     (loop with list = nil
        with u = target
@@ -204,14 +203,33 @@
                                            :key (lambda (txn)
                                                   (slot-value txn 'source)))))))
 
-(defmethod right-handed-favor ((specimen pc) (observer pc) (from time) (to time))
+(defun relative-favor (observer specimen from to exclusion-function)
   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
-    (reduce #'+ (cons (direct-favor specimen observer 1/2)
-                     (mapcar (lambda (path) (path-favor path 1/2))
-                             (all-indirect-paths *all-pcs* specimen observer
-                                                 (lambda (txn)
-                                                   (and (eq observer (slot-value txn 'source))
-                                                        (eq specimen (slot-value txn 'target))))))))))
+    (reduce #'+ (cons (direct-favor observer specimen 1/2)
+                      (mapcar (lambda (path) (path-favor path 1/2))
+                              (all-indirect-paths *all-pcs* observer specimen
+                                                  exclusion-function))))))
+
+(defmethod right-handed-favor ((observer pc) (specimen pc) (from time) (to time))
+  (relative-favor observer specimen from to
+                  (lambda (node txn)
+                    (and (not (eq node (slot-value txn 'source)))
+                         (not (if (eq specimen (slot-value txn 'target))
+                                  t
+                                  (not (minusp (direct-favor node specimen 1/2)))))
+                         (and (eq observer (slot-value txn 'source))
+                              (eq specimen (slot-value txn 'target)))))))
+
+
+(defmethod left-handed-favor ((observer pc) (specimen pc) (from time) (to time))
+  (relative-favor observer specimen from to
+                  (lambda (node txn)
+                    (and (not (eq node (slot-value txn 'source)))
+                         (not (if (eq specimen (slot-value txn 'target))
+                                  t
+                                  (minusp (direct-favor node specimen 1/2))))
+                         (and (eq observer (slot-value txn 'source))
+                              (eq specimen (slot-value txn 'target)))))))
 
 (defun test-init ()
   (flet ((make-pc (name)
