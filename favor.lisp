@@ -204,8 +204,8 @@
   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
     (reduce #'+ (cons (direct-favor observer specimen 1/2)
                       (mapcar (lambda (path) (path-favor path 1/2))
-                              (all-indirect-paths *all-pcs* observer specimen
-                                                  inclusion-function))))))
+                              (print (all-indirect-paths *all-pcs* observer specimen
+                                                         inclusion-function)))))))
 
 (defmethod right-handed-favor ((observer pc) (specimen pc) (from time) (to time))
   (relative-favor observer specimen from to
@@ -213,20 +213,24 @@
                     (and (eq node (slot-value txn 'source))
                          (if (eq specimen (slot-value txn 'target))
                              t
-                             (not (minusp (direct-favor node specimen 1/2))))
+                             (not (minusp (direct-favor node (slot-value txn 'target) 1/2))))
                          (not (and (eq observer (slot-value txn 'source))
                                    (eq specimen (slot-value txn 'target))))))))
+
 
 
 (defmethod left-handed-favor ((observer pc) (specimen pc) (from time) (to time))
   (relative-favor observer specimen from to
                   (lambda (node txn)
-                    (and (eq node (slot-value txn 'source))
-                         (if (eq specimen (slot-value txn 'target))
-                             t
-                             (not (plusp (direct-favor node specimen 1/2))))
-                         (not (and (eq observer (slot-value txn 'source))
-                                   (eq specimen (slot-value txn 'target))))))))
+                    (if (eq observer (slot-value txn 'source))
+                        (unless (eq specimen (slot-value txn 'target))
+                          (not (plusp (direct-favor node (slot-value txn 'target) 1/2))))
+                        (and (eq node (slot-value txn 'source))
+                             (if (eq specimen (slot-value txn 'target))
+                                 t
+                                 (not (minusp (direct-favor node (slot-value txn 'target) 1/2))))
+                             (not (and (eq observer (slot-value txn 'source))
+                                       (eq specimen (slot-value txn 'target)))))))))
 
 (defun test-init ()
   (flet ((make-pc (name)
