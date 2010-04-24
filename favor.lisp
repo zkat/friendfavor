@@ -232,6 +232,16 @@
                              (not (and (eq observer (slot-value txn 'source))
                                        (eq specimen (slot-value txn 'target)))))))))
 
+(defparameter *favors*
+  '(("Opal" "Taraji" "Taraji" "veritas")
+    ("Taraji" "Veritas" "Veritas" "Veritas")
+    ("Veritas" "Opal" "Taraji")
+    ("flynn" "veritas")))
+
+(defparameter *disfavors*
+  '(("Veritas" "Flynn" "Flynn")
+    ("Opal" "Flynn")))
+
 (defun test-init ()
   (flet ((make-pc (name)
            (make-instance 'pc :name name))
@@ -239,12 +249,21 @@
            (@favor (find-pc name1) (find-pc name2)))
          (disfavor (name1 name2)
            (@disfavor (find-pc name1) (find-pc name2))))
+    (setf *all-pcs* nil
+          *all-transactions* nil)
     (mapcar #'make-pc '("Opal" "Taraji" "Veritas" "Flynn"))
-    (favor "Opal" "Taraji")
-    (favor "Opal" "Taraji")
-    (favor "Taraji" "Veritas")
-    (favor "Taraji" "Veritas")
-    (favor "Taraji" "Veritas")
-    (disfavor "Veritas" "Flynn")
-    (disfavor "Veritas" "Flynn")
-    (disfavor "Opal" "Flynn")))
+    (loop for (char . targets) in *favors*
+         do (loop for target in targets do
+                 (favor char target)))
+    (loop for (char . targets) in *disfavors*
+         do (loop for target in targets do
+                 (disfavor char target)))))
+
+(defun test-right-handed (observer specimen)
+  (coerce (right-handed-favor (find-pc observer) (find-pc specimen)
+                              (make-time (- (get-universal-time) 3600)) (make-time))
+          'float))
+(defun test-left-handed (observer specimen)
+  (coerce (left-handed-favor (find-pc observer) (find-pc specimen)
+                      (make-time (- (get-universal-time) 3600)) (make-time))
+          'float))
