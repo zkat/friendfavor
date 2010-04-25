@@ -1,6 +1,6 @@
-(defpackage #:favor
+(defpackage #:meritocracy
   (:use :cl))
-(in-package :favor)
+(in-package :meritocracy)
 
 ;;; Notes on system design.
 ;;;
