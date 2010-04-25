@@ -10,3 +10,8 @@
   :components ((:file "meritocracy"))
   ;; :long-description ""
   )
+
+(asdf:defsystem meritocracy-tests
+  :depends-on (eos)
+  :serial t
+  :components ((:file "meritocracy-tests")))
