@@ -469,3 +469,7 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
   (coerce (left-handed-favor (find-pc observer) (find-pc specimen)
                       (make-time (- (get-universal-time) 3600)) (make-time))
           'float))
+(defun test-global (specimen)
+  (coerce (global-favor (find-pc specimen)
+                        (make-time (- (get-universal-time) 3600)) (make-time))
+          'float))
