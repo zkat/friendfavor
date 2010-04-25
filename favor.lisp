@@ -31,7 +31,7 @@
 ;;;    Currently, this metric is used when calculating other ratings, but might be useful
 ;;;    if you're not sure how much you have been liking or disliking someone.
 ;;;
-;;; 3. Left-handed favor -
+;;; 3. Right-handed favor -
 ;;;    This is a measure of how much your friends, and the friends of your friends, and
 ;;;    the friends of those, think about a particular person. This is a very valuable measure
 ;;;    of 'relative' favor that takes into account the web of trust and merit that the
@@ -40,7 +40,7 @@
 ;;;    the opinion of those several 'steps' away from you eventually becoming individually
 ;;;    worthless.
 ;;;
-;;; 4. Right-handed favor -
+;;; 4. Left-handed favor -
 ;;;    In a way, the opposite of left-handed favor. This measures how much your enemies (defined
 ;;;    as those you have directly have a negative opinion of) like or dislike a certain character.
 ;;;    The intention of right-handed favor is to attempt to detect which opposing group a certain
@@ -74,44 +74,39 @@
 ;;;    immense rating to a wide variety of people. Likewise, you can be just as hated by everyone.
 ;;;
 ;;; Q. How do NPCs form opinions based on relative ratings?
-;;; A. PCs presumably belong to some group in-game, be it a House, or a certain group of criminals.
-;;;    If this association can be made, all members of that group can granted favor by an NPC
-;;;    representing that House or group, which would connect it to the system as a whole, and
-;;;    give the NPC full access to player-generated merit information.
-;;;    For example, there can be an NPC representing the Avoirdupois. All members of the House
-;;;    are automatically given regular dosages of favor upon joining. The Avoirdupois NPC will
-;;;    then be able to use the overall opinion of all Avoirdupois PCs when choosing whether
-;;;    a certain character has gained enough favor to join, or to receive a promotion.
+;;; A. PCs presumably belong to some group in-game, such as a guild.  If this association can be
+;;;    made, all members of that group can granted favor by an NPC representing that guild, which
+;;;    would connect it to the system as a whole, and give the NPC full access to player-generated
+;;;    favor.
+;;;    For example, there can be an NPC representing the Cooks' Guild. All members of the guild are
+;;;    automatically given regular dosages of favor upon joining. The Cooks' Guild NPC will then be
+;;;    able to use the overall opinion of all Cooks' Guild PCs when choosing whether a certain
+;;;    character has gained enough favor to join, or to receive a promotion.
 ;;;
 ;;; Q. Can I favor/disfavor group NPCs?
-;;; A. Sure. This could be used to express your personal opinion of the 'abstract' part
-;;;    of a House/group/guild/etc. It is still be good, though, to generate favor/disfavor
-;;;    specific to the PC members. Favoring/disfavoring an NPC does not automatically apply
-;;;    to all members of that House/group/guild.
+;;; A. Sure. This could be used to express your personal opinion of the 'abstract' part of a
+;;;    guild/team/etc. It is still be good, though, to generate favor/disfavor specific to the PC
+;;;    members. Favoring/disfavoring an NPC does not automatically apply to all members of that
+;;;    guild/team/etc.
 ;;;
 ;;; Q. Is favor/disfavor private?
-;;; A. No. Favor/disfavor is meant to express publicly-held views and opinions, and as such
+;;; A. No. Favor/disfavor is meant to express *publicly-held* views and opinions, and as such
 ;;;    remains public at all times.
 ;;;
-;;; Q. Do I need a sponsor in this system?
-;;; A. No, sponsorship is built right into the relative favor system, and thus, sponsors become
-;;;    unnecessary. Having high favor within a certain group of characters directly correlates
-;;;    to how much that group as a whole likes you, even if other groups have a completely
-;;;    different opinion of you.
-;;;
 ;;; Q. Do I 'spend' my favor/disfavor when I gain benefits from it?
-;;; A. No, favor/disfavor remains as long as it's within the time bounds. It is not like
-;;;    currency in the sense that you buy things with it. Instead, you build up a reputation
-;;;    until you are considered worthy enough to simply be placed in a certain position.
-;;;    Likewise, if your favor expires, you are no longer considered to have as much clout,
-;;;    and thus risk being demoted if relative favor drops low enough.
+;;; A. No, favor/disfavor remains as long as it's within the time bounds. It is not like currency in
+;;;    the sense of making purchases through spending it. Instead, you build up a reputation until
+;;;    you are considered worthy enough to simply be placed in a certain position or be given a
+;;;    certain item.  Likewise, if your favor expires, you are no longer considered to have as much
+;;;    clout, and thus risk being demoted if relative favor drops low enough.
 ;;;
 ;;; Q. Can I lie with favor/disfavor?
-;;; A. You could, but don't expect people to think very highly of you if they believe
-;;;    you're lying. Remember that favor/disfavor expresses your public opinion. If people
-;;;    see that you're spreading lies and slander, it's very likely you will be disfavored
-;;;    very quickly, possibly even by those close to you, and a record of these disfavors
-;;;    will remain public. There is no need for any other enforcement of truth.
+;;; A. You could. It's reasonable to try to slander someone publicly, or lie about their merits,
+;;;    but don't expect people to think very highly of you if they believe you're lying. Remember
+;;;    that favor/disfavor expresses your public opinion. If people see that you're spreading lies
+;;;    and slander, it's very likely you will be disfavored very quickly, possibly even by those
+;;;    close to you, and a record of these disfavors will remain public. There is no need for any
+;;;    other enforcement of truth.
 ;;;
 ;;; Q. Can commoners/slaves start disfavoring nobles and making them lose rank or vice-versa?
 ;;; A. Not unless they have the right connections. A Noble House does not care about the opinions
@@ -120,17 +115,39 @@
 ;;;    happen to be exceptionally well-connected.
 ;;;
 ;;; Q. Can I just give everyone favor and become famous?
-;;; A. No, favor works only in one direction: those that have given favor to you.
+;;; A. No, favor works only in one direction. Giving favor to someone does not make them favor you.
 ;;;
-;;; Q. The disfavor I gave someone a month ago just expired, but I still hate them for doing
-;;;    that. Can I just be catty and keep disfavoring them until I get bored of doing so?
+;;; Q. The disfavor I gave someone a month ago just expired, but I still hate them for doing that
+;;;    thing they did. Can I just be catty and keep disfavoring them until I get bored of doing so?
 ;;; A. Sure. If your feelings are still negative, you can continue to give disfavor.
 ;;;    While it's nice when a particular favor/disfavor is associated with an event,
 ;;;    it's really a measure of what your opinion of that character is.
 ;;;
 ;;; Q. Someone disfavored me and I don't like them for doing so. Can I disfavor them?
-;;; A. Sure, if you find out that someone has been saying nasty things about you, it's
-;;;    only fair that you can declare your dislike for that certain someone.
+;;; A. Sure, if you find out that someone has been saying nasty things about you, it's only fair
+;;;    that you can declare your dislike for that certain someone. You can, though, expect
+;;;    retaliation from others if they think the disfavor given to you was earned, and that you are
+;;;    just being a brat for retaliating for it.
+;;;
+;;; Q. Does this implement something like an 'evil rank' that villain characters can use?
+;;; A. Not explicitly, but yes. Again, it's about connections. You can identify villains either by
+;;;    checking a 'righteous' group's opinion of them, or by simply belonging to a villain group and
+;;;    checking on your mates. This will also take into account rivalries between said villains.
+;;;
+;;; Q. Does this system prevent other kinds of promotions/demotions from happening?
+;;; A. Not necessarily. It can work *with* them, but it does not need to be the One True Rule for
+;;;    evaluating promotions or demotions. It's perfectly reasonable that other in-game rules would
+;;;    promote a player that would not otherwise have earned that place. Likewise, it's possible for
+;;;    someone to simply be given a promotion because their connections would be valuable to
+;;;    someone. I might try to get X to join my guild because X has good friends in high places, and
+;;;    I believe that if X favors me (because X is part of my group now), I will receive benefits
+;;;    from the higher favor his friends see from me.
+;;;
+;;; Q. Do I need a sponsor in this system?
+;;; A. No, sponsorship is built right into the relative favor system, and thus, sponsors become
+;;;    unnecessary. Having high favor within a certain group of characters directly correlates
+;;;    to how much that group as a whole likes you, even if other groups have a completely
+;;;    different opinion of you.
 ;;;
 (defvar *all-pcs* '())
 (defvar *all-transactions* '())
