@@ -193,7 +193,7 @@ why it was granted.")
 
 ;;; Implementations
 (defparameter *distance-decay-factor* 1)
-(defparameter *repeated-favor-decay* 1/2)
+(defparameter *repeated-favor-decay* 4/5)
 
 (defun path-favor (path transaction-decay)
   "Given a path, calculates its total value. TRANSACTION-DECAY measures how quickly repeated
