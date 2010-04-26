@@ -255,8 +255,8 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
     ;; To include someone's direct favor, (cons (direct-favor observer specimen 1/2 (mapcar ... )))
     (reduce #'+ (mapcar (lambda (path) (path-favor path *repeated-favor-decay*))
-                        (print (all-indirect-paths *all-pcs* observer specimen
-                                                   inclusion-function))))))
+                        (all-indirect-paths *all-pcs* observer specimen
+                                            inclusion-function)))))
 
 (defmethod right-handed-favor ((observer pc) (specimen pc) (from time) (to time))
   (relative-favor observer specimen from to
