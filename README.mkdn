@@ -141,7 +141,7 @@ Q. Does this implement something like an 'evil rank' that villain characters can
 
 A. Not explicitly, but yes. Again, it's about connections. You can identify villains either by
    checking a 'righteous' group's opinion of them, or by simply belonging to a villain group and
-   checking on your mates. This will also take into account rivalries between said villains.
+   checking on your mates. This system can also be useful for seeing rivalries between villains.
 
 Q. Does this system prevent other kinds of promotions/demotions from happening?
 
@@ -150,7 +150,7 @@ A. Not necessarily. It can work *with* them, but it does not need to be the One 
    promote a player that would not otherwise have earned that place. Likewise, it's possible for
    someone to simply be given a promotion because their connections would be valuable to
    someone. I might try to get X to join my guild because X has good friends in high places, and
-   I believe that if X favors me (because X is part of my group now), I will receive benefits
+   I believe that if X favors me (because X is part of my guild now), I will receive benefits
    from the higher favor his friends see from me.
 
 Q. Do I need a sponsor in this system?
