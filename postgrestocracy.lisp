@@ -234,12 +234,12 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
                                         :where (:and (:= 'target-id (user-id target))
                                                      (:= 'source-id (user-id judge))
                                                      (:= 'type-id *favor-id*)))))
-           (disfavors (query (:select (:count :*) :from 'transaction
-                                      :where (:and (:= 'target-id (user-id target))
-                                                   (:= 'source-id (user-id judge))
-                                                   (:= 'type-id *disfavor-id*)))))
+           (disfavor-count (query (:select (:count :*) :from 'transaction
+                                           :where (:and (:= 'target-id (user-id target))
+                                                        (:= 'source-id (user-id judge))
+                                                        (:= 'type-id *disfavor-id*)))))
            (favor-value (geometric-sum 1 decay-factor favor-count))
-           (disfavor-value (geometric-sum 1 decay-factor favor-count)))
+           (disfavor-value (geometric-sum 1 decay-factor disfavor-count)))
       (- favor-value disfavor-value))))
 
 (defun relevant-time-p (time upper-bound lower-bound)
@@ -252,19 +252,16 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
                    (relevant-time-p (slot-value txn 'time) to from))
                  txn-list))
 
-(defmethod global-favor ((pc pc) (from-date time) (to-date time))
-  (let* ((*all-transactions* (clamp-transactions *all-transactions* from-date to-date))
-         (relevant-transactions (remove-if-not
-                                 (lambda (txn)
-                                   (eq pc (slot-value txn 'target)))
-                                 *all-transactions*)))
-    (reduce #'+ (mapcar (lambda (txn)
-                          (direct-favor (slot-value txn 'source)
-                                        pc
-                                        *repeated-favor-decay*))
-                        (remove-duplicates relevant-transactions
-                                           :key (lambda (txn)
-                                                  (slot-value txn 'source)))))))
+(defmethod global-favor ((user user) from-date to-date)
+  (reduce #'+ (mapcar (lambda (txn)
+                        (direct-favor (slot-value txn 'source)
+                                      user
+                                      *repeated-favor-decay*))
+                      (remove-duplicates
+                       (select-dao 'transaction (:and (:> 'time from-date)
+                                                      (:> to-date 'time)
+                                                      (:= (user-id user) 'target)))
+                       :key #'source-id))))
 
 (defun relative-favor (observer specimen from to inclusion-function)
   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
