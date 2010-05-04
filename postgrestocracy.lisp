@@ -105,8 +105,73 @@ why it was granted.")
                                    :target-id (user-id target))))))
 
 ;;;
-;;; Path-finding
+;;; Metrics
 ;;;
+
+;;; Generics
+(defgeneric global-favor (pc from-date to-date)
+  (:documentation "Returns the global favor accumulated by user between FROM and TO."))
+
+(defgeneric right-handed-favor (observer specimen from to)
+  (:documentation "Returns the relative favor for SPECIMEN as seen by OBSERVER, between FROM and
+TO. Right-handed favor is a measurement of what those that you have positive opinions of, and their
+positive connections, think of SPECIMEN."))
+
+(defgeneric left-handed-favor (observer specimen from to)
+  (:documentation "Retuns the left-handed favor for SPECIMEN as seen by OBSERVER, between FROM and
+TO. Left-handed favor is a measurement of what those that you have negative opinions of, and their
+positive connections, think of SPECIMEN."))
+
+;;; Implementations
+(defparameter *distance-decay-factor* 1)
+(defparameter *repeated-favor-decay* 4/5)
+
+(defun path-favor (path transaction-decay)
+  "Given a path, calculates its total value. TRANSACTION-DECAY measures how quickly repeated
+favor/disfavors decay in value."
+  (if (or (null path) (= 1 (length path)))
+      (error "Invalid path ~S" path)
+      ;; We only care about the actual opinion of the second-to-last node in the path.
+      (let ((judge (car (last (butlast path))))
+            (target (car (last path))))
+        (let ((unweighted (direct-favor judge target transaction-decay))
+              (weight (* *distance-decay-factor* (1- (length path)))))
+          (/ unweighted weight)))))
+
+(defun direct-favor (judge target decay-factor)
+  "Calculates the direct favor from JUDGE to TARGET. DECAY-FACTOR represents how quickly repeated
+favor/disfavors might decay in value. When DECAY-FACTOR < 1, an infinite number of transactions will
+eventually converge on a single number. When > 1, favor can grow unbounded into infinity."
+  (flet ((geometric-sum (first-term common-ratio num-terms)
+           "sum of a + ar + ar^2 + ... + ar^(n-1)"
+           (/ (* first-term (- 1 (expt common-ratio num-terms)))
+              (- 1 common-ratio))))
+    (let* ((favor-count (query (:select (:count :*) :from 'transaction
+                                        :where (:and (:= 'target-id (user-id target))
+                                                     (:= 'source-id (user-id judge))
+                                                     (:= 'type-id *favor-id*)))))
+           (disfavor-count (query (:select (:count :*) :from 'transaction
+                                           :where (:and (:= 'target-id (user-id target))
+                                                        (:= 'source-id (user-id judge))
+                                                        (:= 'type-id *disfavor-id*)))))
+           (favor-value (geometric-sum 1 decay-factor favor-count))
+           (disfavor-value (geometric-sum 1 decay-factor disfavor-count)))
+      (- favor-value disfavor-value))))
+
+(defmethod global-favor ((user user) from-date to-date)
+  (reduce #'+ (mapcar (lambda (txn)
+                        (direct-favor (slot-value txn 'source)
+                                      user
+                                      *repeated-favor-decay*))
+                      (remove-duplicates
+                       (select-dao 'transaction (:and (:> 'time from-date)
+                                                      (:> to-date 'time)
+                                                      (:= (user-id user) 'target)))
+                       :key #'source-id))))
+
+;;; todo - need to get these working
+
+;;; Path-finding
 (defun node-neighbors (node inclusion-function)
   "Returns a list of neighbors of NODE. A user is a neighbor iff there is a transaction from node to
 that user, and the transaction passes INCLUSION-FUNCTION. INCLUSION-FUNCTION should be a two-argument
@@ -188,110 +253,33 @@ considered a valid path."
      do (setf graph (remove (car (last (butlast shortest))) graph))
      collect shortest))
 
-;;;
-;;; Metrics
-;;;
+;; (defun relative-favor (observer specimen from to inclusion-function)
+;;   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
+;;     (reduce #'+ (cons (direct-favor observer specimen *repeated-favor-decay*)
+;;                       (mapcar (lambda (path) (path-favor path *repeated-favor-decay*))
+;;                               (all-indirect-paths *all-pcs* observer specimen
+;;                                                   inclusion-function))))))
 
-;;; Generics
-(defgeneric global-favor (pc from-date to-date)
-  (:documentation "Returns the global favor accumulated by user between FROM and TO."))
+;; (defmethod right-handed-favor ((observer pc) (specimen pc) (from time) (to time))
+;;   (relative-favor observer specimen from to
+;;                   (lambda (node txn)
+;;                     (and (eq node (slot-value txn 'source))
+;;                          (if (eq specimen (slot-value txn 'target))
+;;                              t
+;;                              (plusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+;;                          (not (and (eq observer (slot-value txn 'source))
+;;                                    (eq specimen (slot-value txn 'target))))))))
 
-(defgeneric right-handed-favor (observer specimen from to)
-  (:documentation "Returns the relative favor for SPECIMEN as seen by OBSERVER, between FROM and
-TO. Right-handed favor is a measurement of what those that you have positive opinions of, and their
-positive connections, think of SPECIMEN."))
-
-(defgeneric left-handed-favor (observer specimen from to)
-  (:documentation "Retuns the left-handed favor for SPECIMEN as seen by OBSERVER, between FROM and
-TO. Left-handed favor is a measurement of what those that you have negative opinions of, and their
-positive connections, think of SPECIMEN."))
-
-;;; Implementations
-(defparameter *distance-decay-factor* 1)
-(defparameter *repeated-favor-decay* 4/5)
-
-(defun path-favor (path transaction-decay)
-  "Given a path, calculates its total value. TRANSACTION-DECAY measures how quickly repeated
-favor/disfavors decay in value."
-  (if (or (null path) (= 1 (length path)))
-      (error "Invalid path ~S" path)
-      ;; We only care about the actual opinion of the second-to-last node in the path.
-      (let ((judge (car (last (butlast path))))
-            (target (car (last path))))
-        (let ((unweighted (direct-favor judge target transaction-decay))
-              (weight (* *distance-decay-factor* (1- (length path)))))
-          (/ unweighted weight)))))
-
-(defun direct-favor (judge target decay-factor)
-  "Calculates the direct favor from JUDGE to TARGET. DECAY-FACTOR represents how quickly repeated
-favor/disfavors might decay in value. When DECAY-FACTOR < 1, an infinite number of transactions will
-eventually converge on a single number. When > 1, favor can grow unbounded into infinity."
-  (flet ((geometric-sum (first-term common-ratio num-terms)
-           "sum of a + ar + ar^2 + ... + ar^(n-1)"
-           (/ (* first-term (- 1 (expt common-ratio num-terms)))
-              (- 1 common-ratio))))
-    (let* ((favor-count (query (:select (:count :*) :from 'transaction
-                                        :where (:and (:= 'target-id (user-id target))
-                                                     (:= 'source-id (user-id judge))
-                                                     (:= 'type-id *favor-id*)))))
-           (disfavor-count (query (:select (:count :*) :from 'transaction
-                                           :where (:and (:= 'target-id (user-id target))
-                                                        (:= 'source-id (user-id judge))
-                                                        (:= 'type-id *disfavor-id*)))))
-           (favor-value (geometric-sum 1 decay-factor favor-count))
-           (disfavor-value (geometric-sum 1 decay-factor disfavor-count)))
-      (- favor-value disfavor-value))))
-
-(defun relevant-time-p (time upper-bound lower-bound)
-  "Evaluates to true if TIME is between UPPER-BOUND and LOWER-BOUND."
-  (> upper-bound time lower-bound))
-
-(defun clamp-transactions (txn-list from to)
-  "Returns a list of transactions from TXN-LIST whose time is between FROM and TO."
-  (remove-if-not (lambda (txn)
-                   (relevant-time-p (slot-value txn 'time) to from))
-                 txn-list))
-
-(defmethod global-favor ((user user) from-date to-date)
-  (reduce #'+ (mapcar (lambda (txn)
-                        (direct-favor (slot-value txn 'source)
-                                      user
-                                      *repeated-favor-decay*))
-                      (remove-duplicates
-                       (select-dao 'transaction (:and (:> 'time from-date)
-                                                      (:> to-date 'time)
-                                                      (:= (user-id user) 'target)))
-                       :key #'source-id))))
-
-(defun relative-favor (observer specimen from to inclusion-function)
-  (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
-    (reduce #'+ (cons (direct-favor observer specimen *repeated-favor-decay*)
-                      (mapcar (lambda (path) (path-favor path *repeated-favor-decay*))
-                              (all-indirect-paths *all-pcs* observer specimen
-                                                  inclusion-function))))))
-
-(defmethod right-handed-favor ((observer pc) (specimen pc) (from time) (to time))
-  (relative-favor observer specimen from to
-                  (lambda (node txn)
-                    (and (eq node (slot-value txn 'source))
-                         (if (eq specimen (slot-value txn 'target))
-                             t
-                             (plusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
-                         (not (and (eq observer (slot-value txn 'source))
-                                   (eq specimen (slot-value txn 'target))))))))
-
-
-
-(defmethod left-handed-favor ((observer pc) (specimen pc) (from time) (to time))
-  (relative-favor observer specimen from to
-                  (lambda (node txn)
-                    (if (eq observer (slot-value txn 'source))
-                        (unless (eq specimen (slot-value txn 'target))
-                          (minusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
-                        (and (eq node (slot-value txn 'source))
-                             (if (eq specimen (slot-value txn 'target))
-                                 t
-                                 (plusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
-                             (not (and (eq observer (slot-value txn 'source))
-                                       (eq specimen (slot-value txn 'target)))))))))
+;; (defmethod left-handed-favor ((observer pc) (specimen pc) (from time) (to time))
+;;   (relative-favor observer specimen from to
+;;                   (lambda (node txn)
+;;                     (if (eq observer (slot-value txn 'source))
+;;                         (unless (eq specimen (slot-value txn 'target))
+;;                           (minusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+;;                         (and (eq node (slot-value txn 'source))
+;;                              (if (eq specimen (slot-value txn 'target))
+;;                                  t
+;;                                  (plusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+;;                              (not (and (eq observer (slot-value txn 'source))
+;;                                        (eq specimen (slot-value txn 'target)))))))))
 
