@@ -3,18 +3,6 @@
 (in-package :pgtocracy)
 
 ;;;
-;;; Time utils
-;;;
-(defstruct (time (:constructor %make-time
-                               (universal-time second minute
-                                hour date month year day daylight-p zone)))
-  universal-time second minute hour date month year day daylight-p zone)
-
-(defun make-time (&optional (universal-time (get-universal-time)))
-  (multiple-value-call #'%make-time universal-time
-                       (decode-universal-time universal-time)))
-
-;;;
 ;;; Users
 ;;;
 (defclass user ()
