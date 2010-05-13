@@ -9,6 +9,7 @@
   ((user-id :col-type bigserial :accessor user-id)
    (name :initarg :name
          :initform (error "User must be initialized with a name.")
+         :col-type string
          :accessor name))
   (:metaclass dao-class)
   (:keys user-id))
@@ -31,9 +32,9 @@
 ;;;
 (defclass transaction ()
   ((transaction-id :col-type bigserial :accessor transaction-id)
-   (type-id :initarg :type-id :initform (error "Must provide a transaction type.")
-            :col-type integer
-            :accessor type-id)
+   (favorp :initarg :favorp :initform t
+           :col-type boolean
+           :accessor favorp)
    (source-id :initform (error "Transaction must be given a source user.")
               :initarg :source-id
               :col-type integer
@@ -57,15 +58,9 @@
           (to  (slot-value (slot-value obj 'target)'name)))
       (format stream "From: ~A, To: ~A" from to))))
 
-(defparameter *favor-id* 0)
-(defparameter *disfavor-id* 1)
-
 ;; Todo - these are dumb
-(defun @favorp (transaction)
-  (= *favor-id* (type-id transaction)))
-
-(defun @disfavorp (transaction)
-  (= *disfavor-id* (type-id transaction)))
+(defun disfavorp (transaction)
+  (not (favorp transaction)))
 
 ;;; Granting favor/disfavor
 (defgeneric @favor (actor target &optional description)
@@ -75,7 +70,6 @@ it was granted.")
     (if (user= actor target)
         (error "No, you can't @favor yourself!")
         (insert-dao (make-instance 'transaction
-                                   :type-id *favor-id*
                                    :description description
                                    :source-id (user-id actor)
                                    :target-id (user-id target))))))
@@ -87,7 +81,7 @@ why it was granted.")
     (if (user= actor target)
         (error "No, you can't @disfavor yourself!")
         (insert-dao (make-instance 'transaction
-                                   :type-id *disfavor-id*
+                                   :favorp nil
                                    :description description
                                    :source-id (user-id actor)
                                    :target-id (user-id target))))))
@@ -137,11 +131,11 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
     (let* ((favor-count (query (:select (:count :*) :from 'transaction
                                         :where (:and (:= 'target-id (user-id target))
                                                      (:= 'source-id (user-id judge))
-                                                     (:= 'type-id *favor-id*)))))
+                                                     (:= 'favorp t)))))
            (disfavor-count (query (:select (:count :*) :from 'transaction
                                            :where (:and (:= 'target-id (user-id target))
                                                         (:= 'source-id (user-id judge))
-                                                        (:= 'type-id *disfavor-id*)))))
+                                                        (:= 'favorp nil)))))
            (favor-value (geometric-sum 1 decay-factor favor-count))
            (disfavor-value (geometric-sum 1 decay-factor disfavor-count)))
       (- favor-value disfavor-value))))
