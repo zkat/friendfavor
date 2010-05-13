@@ -237,6 +237,10 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
                    (relevant-time-p (slot-value txn 'time) to from))
                  txn-list))
 
+(defun real-direct-favor (observer specimen from to)
+  (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
+    (direct-favor observer specimen *repeated-favor-decay*)))
+
 (defmethod global-favor ((pc pc) (from-date time) (to-date time))
   (let* ((*all-transactions* (clamp-transactions *all-transactions* from-date to-date))
          (relevant-transactions (remove-if-not
@@ -266,8 +270,6 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
                              (plusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
                          (not (and (eq observer (slot-value txn 'source))
                                    (eq specimen (slot-value txn 'target))))))))
-
-
 
 (defmethod left-handed-favor ((observer pc) (specimen pc) (from time) (to time))
   (relative-favor observer specimen from to
@@ -312,15 +314,88 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
          do (loop for target in targets do
                  (disfavor char target)))))
 
+(defvar *min-time*)
+(defvar *max-time*)
+
 (defun test-right-handed (observer specimen)
   (coerce (right-handed-favor (find-pc observer) (find-pc specimen)
-                              (make-time (- (get-universal-time) 3600)) (make-time))
+                              *min-time* *max-time*)
           'float))
 (defun test-left-handed (observer specimen)
   (coerce (left-handed-favor (find-pc observer) (find-pc specimen)
-                      (make-time (- (get-universal-time) 3600)) (make-time))
+                             *min-time* *max-time*)
           'float))
 (defun test-global (specimen)
   (coerce (global-favor (find-pc specimen)
-                        (make-time (- (get-universal-time) 3600)) (make-time))
+                        *min-time* *max-time*)
           'float))
+
+(defun ensure-pc (name)
+  (or (find-pc name)
+      (make-instance 'pc :name name)))
+
+(defun import-transaction-from-hash (hash)
+  (let ((type (gethash "type" hash))
+        (source (gethash "source" hash))
+        (target (gethash "target" hash))
+        (timestamp (gethash "date" hash)))
+    (push
+     (make-instance (if (equal type "positive") '@favor '@disfavor)
+                    :source (ensure-pc source)
+                    :target (ensure-pc target)
+                    :time (make-time timestamp))
+     *all-transactions*)))
+
+(defun dump-s-dot (filename target)
+  (s-dot:render-s-dot filename "svg" (generate-s-dot-graph target)))
+
+(defun generate-full-graph (favor-func lowball highball)
+  `(s-dot::graph ((s-dot::ratio "auto") (s-dot::ranksep "0.1") (s-dot::nodesep "0.1"))
+                 ,@(loop for node in *all-pcs* collect `(s-dot::node ((s-dot::id ,(slot-value node 'name))
+                                                                      (s-dot::label ,(let ((name (slot-value node 'name)))
+                                                                                          (format nil "~A - WG: ~A" name (test-global name)))))))
+                 ,@(loop with edges = nil
+                      for source in *all-pcs*
+                      do (loop for target in *all-pcs*
+                            unless (eq target source)
+                            do (let ((favor (coerce (funcall favor-func source target *min-time* *max-time*) 'float)))
+                                 (unless (<= lowball favor highball)
+                                   (push `(s-dot::edge ((s-dot::from ,(slot-value source 'name))
+                                                        (s-dot::to ,(slot-value target 'name))
+                                                        (s-dot::label ,(princ-to-string favor))
+                                                        (s-dot::color ,(if (plusp favor)
+                                                                           "#348017" ;; green
+                                                                           "#C11B17" ;; red
+                                                                           ))))
+                                         edges))))
+                      finally (return edges))))
+
+(defun generate-s-dot-graph (target)
+  `(s-dot::graph ((s-dot::ranksep "equally"))
+                 ,@(loop with edges = nil
+                      with relevant-nodes = `((s-dot::node ((s-dot::id ,(slot-value target 'name)))))
+                      for source in *all-pcs*
+                      unless (eq target source)
+                      do (let ((right-handed-favor (coerce (right-handed-favor source target *min-time* *max-time*) 'float)))
+                           (unless (zerop right-handed-favor)
+                             (push `(s-dot::edge ((s-dot::from ,(slot-value source 'name))
+                                                  (s-dot::to ,(slot-value target 'name))
+                                                  (s-dot::label ,(princ-to-string right-handed-favor))
+                                                  (s-dot::color ,(if (plusp right-handed-favor)
+                                                                     "#348017" ;; green
+                                                                     "#C11B17" ;; red
+                                                                     ))))
+                                   edges)
+                             (pushnew `(s-dot::node ((s-dot::id ,(slot-value source 'name))))
+                                      relevant-nodes :test #'string= :key (lambda (x)
+                                                                            (car (cdaadr x))))))
+                      finally (return (append edges relevant-nodes)))))
+
+(defun set-hi-low ()
+  (setf *min-time* (make-time (reduce #'min (mapcar (lambda (txn)
+                                                      (time-universal-time (slot-value txn 'time)))
+                                                    *all-transactions*))))
+  (setf *max-time* (make-time (reduce #'max (mapcar (lambda (txn)
+                                                      (time-universal-time (slot-value txn 'time)))
+                                                    *all-transactions*))))
+  t)

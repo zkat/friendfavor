@@ -4,7 +4,7 @@
   :maintainer "Kat Marchán <zkat@Dagon>"
   :author "Kat Marchán <zkat@Dagon>"
   :licence "Public-domain"
-  :depends-on ()
+  :depends-on (s-dot)
   :serial t
   ;; components likely need manual reordering
   :components ((:file "meritocracy"))
