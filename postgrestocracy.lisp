@@ -2,6 +2,7 @@
   (:use :cl :postmodern))
 (in-package :pgtocracy)
 
+(declaim (optimize (debug 3)))
 ;;;
 ;;; Users
 ;;;
@@ -16,16 +17,22 @@
 
 (defmethod print-object ((obj user) stream)
   (print-unreadable-object (obj stream :type t :identity t)
-    (format stream "~A" (slot-value obj 'name))))
+    (format stream "~A (~A)" (name obj) (user-id obj))))
 
 (defun find-user-by-id (user-id)
-  (select-dao 'user (:= user-id 'user-id)))
+  (car (select-dao 'user (:= user-id 'user-id))))
 
 (defun find-user-by-name (name)
-  (select-dao 'user (:= name 'name)))
+  (car (select-dao 'user (:= name 'name))))
 
 (defun user= (user1 user2)
   (= (user-id user1) (user-id user2)))
+
+(defgeneric find-user (identifier)
+  (:method ((id integer))
+    (find-user-by-id id))
+  (:method ((id string))
+    (find-user-by-name id)))
 
 ;;;
 ;;; Transactions
@@ -45,7 +52,7 @@
               :accessor target-id)
    (time :initform (get-universal-time)
          :initarg :time
-         :col-type integer)
+         :col-type bigint)
    (description :initarg :description
                 :col-type string
                 :col-default "No description"))
@@ -54,11 +61,10 @@
 
 (defmethod print-object ((obj transaction) stream)
   (print-unreadable-object (obj stream :type t :identity t)
-    (let ((from (slot-value (slot-value obj 'source)'name))
-          (to  (slot-value (slot-value obj 'target)'name)))
-      (format stream "From: ~A, To: ~A" from to))))
+    (format stream "~A (~A -> ~A)" (if (favorp obj)
+                                       "Favor" "Disfavor")
+            (name (find-user (source-id obj))) (name (find-user (target-id obj))))))
 
-;; Todo - these are dumb
 (defun disfavorp (transaction)
   (not (favorp transaction)))
 
@@ -87,92 +93,116 @@ why it was granted.")
                                    :target-id (user-id target))))))
 
 ;;;
+;;; Importing
+;;;
+(defun ensure-user (name)
+  (or (find-user-by-name name)
+      (insert-dao (make-instance 'user :name name))))
+
+(defun unix-time->universal-time (unix-time)
+  (+ unix-time 2208988800))
+
+(defun import-transaction-from-hash (hash)
+  (let ((type (gethash "type" hash))
+        (source (gethash "source" hash))
+        (target (gethash "target" hash))
+        (timestamp (gethash "date" hash)))
+    (insert-dao (make-instance 'transaction
+                               :favorp (equalp type "positive")
+                               :source-id (user-id (ensure-user source))
+                               :target-id (user-id (ensure-user target))
+                               :time (unix-time->universal-time timestamp)))))
+
+;;;
 ;;; Metrics
 ;;;
 
 ;;; Generics
-(defgeneric global-favor (pc from-date to-date)
+(defgeneric global-favor (user from-date to-date)
   (:documentation "Returns the global favor accumulated by user between FROM and TO."))
 
-(defgeneric right-handed-favor (observer specimen from to)
+(defgeneric friend-favor (observer specimen from to)
   (:documentation "Returns the relative favor for SPECIMEN as seen by OBSERVER, between FROM and
-TO. Right-handed favor is a measurement of what those that you have positive opinions of, and their
+TO. friend favor is a measurement of what those that you have positive opinions of, and their
 positive connections, think of SPECIMEN."))
 
-(defgeneric left-handed-favor (observer specimen from to)
-  (:documentation "Retuns the left-handed favor for SPECIMEN as seen by OBSERVER, between FROM and
-TO. Left-handed favor is a measurement of what those that you have negative opinions of, and their
+(defgeneric enemy-favor (observer specimen from to)
+  (:documentation "Retuns the enemy favor for SPECIMEN as seen by OBSERVER, between FROM and
+TO. enemy favor is a measurement of what those that you have negative opinions of, and their
 positive connections, think of SPECIMEN."))
 
 ;;; Implementations
 (defparameter *distance-decay-factor* 1)
 (defparameter *repeated-favor-decay* 4/5)
 
-(defun path-favor (path transaction-decay)
+(defun path-favor (path from to transaction-decay)
   "Given a path, calculates its total value. TRANSACTION-DECAY measures how quickly repeated
 favor/disfavors decay in value."
-  (if (or (null path) (= 1 (length path)))
+  (if (null path)
       (error "Invalid path ~S" path)
       ;; We only care about the actual opinion of the second-to-last node in the path.
       (let ((judge (car (last (butlast path))))
             (target (car (last path))))
-        (let ((unweighted (direct-favor judge target transaction-decay))
+        (let ((unweighted (personal-favor judge target from to transaction-decay))
               (weight (* *distance-decay-factor* (1- (length path)))))
           (/ unweighted weight)))))
 
-(defun direct-favor (judge target decay-factor)
-  "Calculates the direct favor from JUDGE to TARGET. DECAY-FACTOR represents how quickly repeated
+(defun transaction-count (judge target from to favorp)
+  (query (:select (:count :*) :from 'transaction
+                  :where (:and (:> 'time from)
+                               (:> to 'time)
+                               (:= 'target-id (user-id target))
+                               (:= 'source-id (user-id judge))
+                               (:= 'favorp favorp)))
+         :single))
+
+(defun favor-count (judge target from to)
+  (transaction-count judge target from to t))
+
+(defun disfavor-count (judge target from to)
+  (transaction-count judge target from to nil))
+
+(defun positive-favor-p (judge target from to)
+  (plusp (- (favor-count judge target from to)
+            (disfavor-count judge target from to))))
+
+(defun geometric-sum (first-term common-ratio num-terms)
+  "sum of a + ar + ar^2 + ... + ar^(n-1)"
+  (/ (* first-term (- 1 (expt common-ratio num-terms)))
+     (- 1 common-ratio)))
+
+(defun personal-favor (judge target from to &optional (decay-factor *repeated-favor-decay*))
+  "Calculates the personal favor from JUDGE to TARGET. DECAY-FACTOR represents how quickly repeated
 favor/disfavors might decay in value. When DECAY-FACTOR < 1, an infinite number of transactions will
 eventually converge on a single number. When > 1, favor can grow unbounded into infinity."
-  (flet ((geometric-sum (first-term common-ratio num-terms)
-           "sum of a + ar + ar^2 + ... + ar^(n-1)"
-           (/ (* first-term (- 1 (expt common-ratio num-terms)))
-              (- 1 common-ratio))))
-    (let* ((favor-count (query (:select (:count :*) :from 'transaction
-                                        :where (:and (:= 'target-id (user-id target))
-                                                     (:= 'source-id (user-id judge))
-                                                     (:= 'favorp t)))))
-           (disfavor-count (query (:select (:count :*) :from 'transaction
-                                           :where (:and (:= 'target-id (user-id target))
-                                                        (:= 'source-id (user-id judge))
-                                                        (:= 'favorp nil)))))
-           (favor-value (geometric-sum 1 decay-factor favor-count))
-           (disfavor-value (geometric-sum 1 decay-factor disfavor-count)))
-      (- favor-value disfavor-value))))
+  (let ((favor-value (geometric-sum 1 decay-factor
+                                    (favor-count judge target from to)))
+        (disfavor-value (geometric-sum 1 decay-factor
+                                       (disfavor-count judge target from to))))
+    (- favor-value disfavor-value)))
 
-(defmethod global-favor ((user user) from-date to-date)
+(defmethod global-favor ((user user) from to)
   (reduce #'+ (mapcar (lambda (txn)
-                        (direct-favor (slot-value txn 'source)
-                                      user
-                                      *repeated-favor-decay*))
+                        (personal-favor (find-user (slot-value txn 'source-id))
+                                        user from to))
                       (remove-duplicates
-                       (select-dao 'transaction (:and (:> 'time from-date)
-                                                      (:> to-date 'time)
-                                                      (:= (user-id user) 'target)))
+                       (select-dao 'transaction (:and (:> 'time from)
+                                                      (:> to 'time)
+                                                      (:= (user-id user) 'target-id)))
                        :key #'source-id))))
 
-;;; todo - need to get these working
-
 ;;; Path-finding
-(defun node-neighbors (node inclusion-function)
+(defun node-neighbors (node-id neighbor-func exclusion-list)
   "Returns a list of neighbors of NODE. A user is a neighbor iff there is a transaction from node to
 that user, and the transaction passes INCLUSION-FUNCTION. INCLUSION-FUNCTION should be a two-argument
 function that accepts a user (the current node we're getting neighbors for), and a transaction object,
 and returns a generalized boolean that answers whether that transaction's target should be in the
 list of NODE's neighbors."
-  ;; TODO - SQL-ify this.
-  (remove-duplicates
-   (mapcar #'target-id
-           (remove-if-not (lambda (txn)
-                            (funcall inclusion-function node txn))
-                          (transactions-from node)))
-   :key #'transaction-id
-   :test #'=))
+  (remove-if (lambda (user)
+               (member (user-id user) exclusion-list))
+             (funcall neighbor-func node-id)))
 
-(defun transactions-from (node)
-  (select-dao 'transaction (:= 'source-id (user-id node))))
-
-(defun dijkstra (graph source inclusion-func)
+(defun dijkstra (graph source-id neighbor-func exclusion-list)
   "Mostly standard implementation of Dijkstra's algorithm. Returns a hash table of distances and
 a hash table with shortest paths. INCLUSION-FUNC is used by #'NODE-NEIGHBORS."
   (let ((distances (make-hash-table))
@@ -182,7 +212,7 @@ a hash table with shortest paths. INCLUSION-FUNC is used by #'NODE-NEIGHBORS."
          (setf (gethash node distances) nil))
 
     ;; Distance from source to source
-    (setf (gethash source distances) 0)
+    (setf (gethash source-id distances) 0)
 
     (flet ((smallest-distance ()
              (let (smallest smallest-value)
@@ -204,7 +234,7 @@ a hash table with shortest paths. INCLUSION-FUNC is used by #'NODE-NEIGHBORS."
          for node = (smallest-distance)
          do (setf graph (remove node graph))
          when (gethash node distances)
-         do (loop for neighbor in (node-neighbors node inclusion-func)
+         do (loop for neighbor in (mapcar #'user-id (node-neighbors node neighbor-func exclusion-list))
                do (let ((node-distance (gethash node distances))
                         (neighbor-distance (gethash neighbor distances)))
                     (when (or (not (or node-distance neighbor-distance))
@@ -215,53 +245,118 @@ a hash table with shortest paths. INCLUSION-FUNC is used by #'NODE-NEIGHBORS."
                             (gethash neighbor previous) node)))))
       (values distances previous))))
 
-(defun shortest-indirect-path (graph source target inclusion-func)
+(defun shortest-indirect-path (source target neighbor-func exclusion-list)
   "Finds the shortest *INDIRECT* path between SOURCE and TARGET. That is, SOURCE->TARGET is not
 considered a valid path."
   (multiple-value-bind (distances previous)
-      (dijkstra graph source inclusion-func)
+      (dijkstra (query (:select 'user-id :from 'user) :column) (user-id source) neighbor-func exclusion-list)
     (declare (ignore distances))
     (loop with list = nil
-       with u = target
+       with u = (user-id target)
        while (gethash u previous)
        do (push u list)
          (setf u (gethash u previous))
-       finally (return (when list (cons source list))))))
+       finally (return list))))
 
-(defun all-indirect-paths (graph source target inclusion-func)
+(defun all-indirect-paths (source target neighbor-func)
   "Finds all indirect shortest paths between SOURCE and TARGET."
-  (loop for shortest = (shortest-indirect-path graph source target inclusion-func)
+  (loop with exclusion-list = nil
+     for shortest = (shortest-indirect-path source target
+                                            neighbor-func exclusion-list)
      while shortest
-     do (setf graph (remove (car (last (butlast shortest))) graph))
+     do (pushnew (car (last (butlast shortest))) exclusion-list)
+       #+nil(format t "Exclusion list: ~A~%" exclusion-list)
      collect shortest))
 
-;; (defun relative-favor (observer specimen from to inclusion-function)
-;;   (let ((*all-transactions* (clamp-transactions *all-transactions* from to)))
-;;     (reduce #'+ (cons (direct-favor observer specimen *repeated-favor-decay*)
-;;                       (mapcar (lambda (path) (path-favor path *repeated-favor-decay*))
-;;                               (all-indirect-paths *all-pcs* observer specimen
-;;                                                   inclusion-function))))))
+(defun relative-favor (observer specimen from to neighbor-finder)
+  (reduce #'+ (mapcar (lambda (path) (path-favor (mapcar #'find-user path) from to *repeated-favor-decay*))
+                      (all-indirect-paths observer specimen neighbor-finder))))
 
-;; (defmethod right-handed-favor ((observer pc) (specimen pc) (from time) (to time))
-;;   (relative-favor observer specimen from to
-;;                   (lambda (node txn)
-;;                     (and (eq node (slot-value txn 'source))
-;;                          (if (eq specimen (slot-value txn 'target))
-;;                              t
-;;                              (plusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
-;;                          (not (and (eq observer (slot-value txn 'source))
-;;                                    (eq specimen (slot-value txn 'target))))))))
+(defun transactions-from (node)
+  (select-dao 'transaction (:= 'source-id (user-id node))))
 
-;; (defmethod left-handed-favor ((observer pc) (specimen pc) (from time) (to time))
+(defun friend-find-node-func (observer specimen from to)
+  (lambda (node-id)
+    (mapcar (lambda (txn)
+              (find-user 
+               (slot-value txn 'target-id)))
+            (remove-duplicates
+             (remove-if-not (lambda (txn)
+                              (if (eq (user-id specimen)
+                                      (slot-value txn 'target-id))
+                                  t
+                                  (plusp (personal-favor (find-user (slot-value txn 'source-id))
+                                                         (find-user (slot-value txn 'target-id))
+                                                         from to))))
+                            (select-dao 'transaction
+                                        (:and (:= 'source-id node-id)
+                                              (:>= to 'time)
+                                              (:<= from 'time)
+                                              (:not (:and
+                                                     (:= (user-id observer) 'source-id)
+                                                     (:= (user-id specimen) 'target-id))))))
+             :key (lambda (txn) (slot-value txn 'target-id))
+             :test #'=)))
+  
+  #+nil(lambda (node txn)
+         (and (eq node (slot-value txn 'source))
+              (if (eq specimen (slot-value txn 'target))
+                  t
+                  (plusp (personal-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+              (not (and (eq observer (slot-value txn 'source))
+                        (eq specimen (slot-value txn 'target)))))))
+
+
+(defmethod friend-favor ((observer user) (specimen user) from to)
+  (relative-favor observer specimen
+                  from to
+                  (friend-find-node-func observer specimen from to)))
+
+;; (defmethod enemy-favor ((observer pc) (specimen pc) (from time) (to time))
 ;;   (relative-favor observer specimen from to
 ;;                   (lambda (node txn)
 ;;                     (if (eq observer (slot-value txn 'source))
 ;;                         (unless (eq specimen (slot-value txn 'target))
-;;                           (minusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+;;                           (minusp (personal-favor node (slot-value txn 'target) *repeated-favor-decay*)))
 ;;                         (and (eq node (slot-value txn 'source))
 ;;                              (if (eq specimen (slot-value txn 'target))
 ;;                                  t
-;;                                  (plusp (direct-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+;;                                  (plusp (personal-favor node (slot-value txn 'target) *repeated-favor-decay*)))
 ;;                              (not (and (eq observer (slot-value txn 'source))
 ;;                                        (eq specimen (slot-value txn 'target)))))))))
 
+
+(defvar *min-time*)
+(defvar *max-time*)
+
+(defun test-setup-time ()
+  (setf *min-time* (query (:select (:min 'time) :from 'transaction) :single)
+        *max-time* (query (:select (:max 'time) :from 'transaction) :single))
+  t)
+
+(defun generate-full-graph (favor-func lowball highball)
+  `(s-dot::graph ((s-dot::ratio "auto") (s-dot::ranksep "0.1") (s-dot::nodesep "0.1"))
+                 ,@(loop for node in (select-dao 'user)
+                      collect `(s-dot::node
+                                ((s-dot::id ,(name node))
+                                 (s-dot::label ,(format nil "~A - WG: ~A" 
+                                                        (name node)
+                                                        (coerce (global-favor node
+                                                                              *min-time*
+                                                                              *max-time*)
+                                                                'float))))))
+                 ,@(loop with edges = nil
+                      for source in (select-dao 'user)
+                      do (loop for target in (select-dao 'user)
+                            unless (= (user-id source) (user-id target))
+                            do (let ((favor (coerce (funcall favor-func source target *min-time* *max-time*) 'float)))
+                                 (unless (< lowball favor highball)
+                                   (push `(s-dot::edge ((s-dot::from ,(name source))
+                                                        (s-dot::to ,(name target))
+                                                        (s-dot::label ,(princ-to-string favor))
+                                                        (s-dot::color ,(if (plusp favor)
+                                                                           "#348017" ;; green
+                                                                           "#C11B17" ;; red
+                                                                           ))))
+                                         edges))))
+                      finally (return edges))))
