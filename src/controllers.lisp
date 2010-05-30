@@ -24,12 +24,12 @@ positive connections, think of SPECIMEN."))
 ;;; Personal favor
 (defparameter *repeated-favor-decay* 4/5)
 
-(defun transaction-count (judge target from to favorp)
+(defun transaction-count (judge-id target-id from to favorp)
   (query (:select (:count :*) :from 'transaction
                   :where (:and (:> 'timestamp from)
                                (:> to 'timestamp)
-                               (:= 'target-id (user-id target))
-                               (:= 'source-id (user-id judge))
+                               (:= 'target-id target-id)
+                               (:= 'source-id judge-id)
                                (:= 'favorp favorp)))
          :single))
 
@@ -44,15 +44,18 @@ positive connections, think of SPECIMEN."))
   (/ (* first-term (- 1 (expt common-ratio num-terms)))
      (- 1 common-ratio)))
 
-(defmethod personal-favor ((judge user) (target user) from to)
-  "Calculates the personal favor from JUDGE to TARGET. *REPEATED-FAVOR-DECAY* represents how quickly repeated
-favor/disfavors might decay in value. When *REPEATED-FAVOR-DECAY* < 1, an infinite number of transactions will
-eventually converge on a single number. When > 1, favor can grow unbounded into infinity."
+(defmethod personal-favor ((judge integer) (target integer) from to)
   (let ((favor-value (geometric-sum 1 *repeated-favor-decay*
                                     (favor-count judge target from to)))
         (disfavor-value (geometric-sum 1 *repeated-favor-decay*
                                        (disfavor-count judge target from to))))
     (- favor-value disfavor-value)))
+
+(defmethod personal-favor ((judge user) (target user) from to)
+  "Calculates the personal favor from JUDGE to TARGET. *REPEATED-FAVOR-DECAY* represents how quickly repeated
+favor/disfavors might decay in value. When *REPEATED-FAVOR-DECAY* < 1, an infinite number of transactions will
+eventually converge on a single number. When > 1, favor can grow unbounded into infinity."
+  (personal-favor (user-id judge) (user-id target) from to))
 
 ;;; Global Favor
 (defmethod global-favor ((user user) from to)
