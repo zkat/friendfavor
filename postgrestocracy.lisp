@@ -314,18 +314,47 @@ considered a valid path."
                   from to
                   (friend-find-node-func observer specimen from to)))
 
-;; (defmethod enemy-favor ((observer pc) (specimen pc) (from time) (to time))
-;;   (relative-favor observer specimen from to
-;;                   (lambda (node txn)
-;;                     (if (eq observer (slot-value txn 'source))
-;;                         (unless (eq specimen (slot-value txn 'target))
-;;                           (minusp (personal-favor node (slot-value txn 'target) *repeated-favor-decay*)))
-;;                         (and (eq node (slot-value txn 'source))
-;;                              (if (eq specimen (slot-value txn 'target))
-;;                                  t
-;;                                  (plusp (personal-favor node (slot-value txn 'target) *repeated-favor-decay*)))
-;;                              (not (and (eq observer (slot-value txn 'source))
-;;                                        (eq specimen (slot-value txn 'target)))))))))
+(defun enemy-find-node-func (observer specimen from to)
+  (lambda (node-id)
+    (mapcar (lambda (txn)
+              (find-user
+               (target-id txn)))
+            (remove-duplicates
+             (remove-if-not (lambda (txn)
+                              (if (= (user-id observer) (source-id txn))
+                                  (unless (eq (user-id specimen)
+                                              (target-id txn))
+                                    (minusp (personal-favor (find-user (source-id txn))
+                                                            (find-user (target-id txn))
+                                                            from to)))
+                                  (if (= (user-id specimen) (target-id txn))
+                                      t
+                                      (plusp (personal-favor (find-user (source-id txn))
+                                                             (find-user (target-id txn))
+                                                             from to)))))
+                            (select-dao 'transaction
+                                        (:and (:= 'source-id node-id)
+                                              (:>= to 'time)
+                                              (:<= from 'time)
+                                              (:not (:and
+                                                     (:= (user-id observer) 'source-id)
+                                                     (:= (user-id specimen) 'target-id))))))
+             :key #'target-id
+             :test #'=)))
+  #+nil(lambda (node txn)
+         (if (eq observer (slot-value txn 'source))
+             (unless (eq specimen (slot-value txn 'target))
+               (minusp (personal-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+             (and (eq node (slot-value txn 'source))
+                  (if (eq specimen (slot-value txn 'target))
+                      t
+                      (plusp (personal-favor node (slot-value txn 'target) *repeated-favor-decay*)))
+                  (not (and (eq observer (slot-value txn 'source))
+                            (eq specimen (slot-value txn 'target))))))))
+
+(defmethod enemy-favor ((observer user) (specimen user) from to)
+  (relative-favor observer specimen from to (enemy-find-node-func
+                                             observer specimen from to)))
 
 
 (defvar *min-time*)
