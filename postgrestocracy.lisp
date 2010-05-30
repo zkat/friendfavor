@@ -10,22 +10,22 @@
 ;;;
 (defclass user ()
   ((user-id :col-type bigserial :accessor user-id)
-   (name :initarg :name
-         :initform (error "User must be initialized with a name.")
+   (username :initarg :username
+         :initform (error "User must be initialized with a username.")
          :col-type string
-         :accessor name))
+         :accessor username))
   (:metaclass dao-class)
   (:keys user-id))
 
 (defmethod print-object ((obj user) stream)
   (print-unreadable-object (obj stream :type t :identity t)
-    (format stream "~A (~A)" (name obj) (user-id obj))))
+    (format stream "~A (~A)" (username obj) (user-id obj))))
 
 (defun find-user-by-id (user-id)
   (car (select-dao 'user (:= user-id 'user-id))))
 
-(defun find-user-by-name (name)
-  (car (select-dao 'user (:= name 'name))))
+(defun find-user-by-username (username)
+  (car (select-dao 'user (:= username 'username))))
 
 (defun user= (user1 user2)
   (= (user-id user1) (user-id user2)))
@@ -34,7 +34,7 @@
   (:method ((id integer))
     (find-user-by-id id))
   (:method ((id string))
-    (find-user-by-name id)))
+    (find-user-by-username id)))
 
 ;;;
 ;;; Transactions
@@ -65,7 +65,7 @@
   (print-unreadable-object (obj stream :type t :identity t)
     (format stream "~A (~A -> ~A)" (if (favorp obj)
                                        "Favor" "Disfavor")
-            (name (find-user (source-id obj))) (name (find-user (target-id obj))))))
+            (username (find-user (source-id obj))) (username (find-user (target-id obj))))))
 
 (defun disfavorp (transaction)
   (not (favorp transaction)))
@@ -97,9 +97,9 @@ why it was granted.")
 ;;;
 ;;; Importing
 ;;;
-(defun ensure-user (name)
-  (or (find-user-by-name name)
-      (insert-dao (make-instance 'user :name name))))
+(defun ensure-user (username)
+  (or (find-user-by-username username)
+      (insert-dao (make-instance 'user :username username))))
 
 (defun unix-time->universal-time (unix-time)
   (+ unix-time 2208988800))
@@ -185,7 +185,7 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
 
 (defmethod global-favor ((user user) from to)
   (reduce #'+ (mapcar (lambda (txn)
-                        (personal-favor (find-user (slot-value txn 'source-id))
+                        (personal-favor (find-user (source-id txn))
                                         user from to))
                       (remove-duplicates
                        (select-dao 'transaction (:and (:> 'time from)
@@ -281,14 +281,14 @@ considered a valid path."
   (lambda (node-id)
     (mapcar (lambda (txn)
               (find-user 
-               (slot-value txn 'target-id)))
+               (target-id txn)))
             (remove-duplicates
              (remove-if-not (lambda (txn)
                               (if (eq (user-id specimen)
-                                      (slot-value txn 'target-id))
+                                      (target-id txn))
                                   t
-                                  (plusp (personal-favor (find-user (slot-value txn 'source-id))
-                                                         (find-user (slot-value txn 'target-id))
+                                  (plusp (personal-favor (find-user (source-id txn))
+                                                         (find-user (target-id txn))
                                                          from to))))
                             (select-dao 'transaction
                                         (:and (:= 'source-id node-id)
@@ -297,7 +297,7 @@ considered a valid path."
                                               (:not (:and
                                                      (:= (user-id observer) 'source-id)
                                                      (:= (user-id specimen) 'target-id))))))
-             :key (lambda (txn) (slot-value txn 'target-id))
+             :key #'target-id
              :test #'=)))
   
   #+nil(lambda (node txn)
@@ -336,13 +336,13 @@ considered a valid path."
         *max-time* (query (:select (:max 'time) :from 'transaction) :single))
   t)
 
-(defun generate-full-graph (favor-func lowball highball)
+#+nil(defun generate-full-graph (favor-func lowball highball)
   `(s-dot::graph ((s-dot::ratio "auto") (s-dot::ranksep "0.1") (s-dot::nodesep "0.1"))
                  ,@(loop for node in (select-dao 'user)
                       collect `(s-dot::node
-                                ((s-dot::id ,(name node))
+                                ((s-dot::id ,(username node))
                                  (s-dot::label ,(format nil "~A - WG: ~A" 
-                                                        (name node)
+                                                        (username node)
                                                         (coerce (global-favor node
                                                                               *min-time*
                                                                               *max-time*)
@@ -353,8 +353,8 @@ considered a valid path."
                             unless (= (user-id source) (user-id target))
                             do (let ((favor (coerce (funcall favor-func source target *min-time* *max-time*) 'float)))
                                  (unless (< lowball favor highball)
-                                   (push `(s-dot::edge ((s-dot::from ,(name source))
-                                                        (s-dot::to ,(name target))
+                                   (push `(s-dot::edge ((s-dot::from ,(username source))
+                                                        (s-dot::to ,(username target))
                                                         (s-dot::label ,(princ-to-string favor))
                                                         (s-dot::color ,(if (plusp favor)
                                                                            "#348017" ;; green
