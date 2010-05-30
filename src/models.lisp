@@ -6,9 +6,13 @@
 (defclass user ()
   ((user-id :col-type bigserial :accessor user-id)
    (username :initarg :username
-         :initform (error "User must be initialized with a username.")
-         :col-type string
-         :accessor username))
+             :initform (error "User must be initialized with a username.")
+             :col-type string
+             :accessor username)
+   (password :initarg :password
+             :initform (error "User must be initialized with a password.")
+             :col-type string
+             :accessor password))
   (:metaclass dao-class)
   (:keys user-id))
 
