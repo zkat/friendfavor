@@ -1,4 +1,4 @@
-(:in-package :ff)
+(in-package :ff)
 
 ;;;
 ;;; Users
