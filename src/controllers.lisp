@@ -225,3 +225,36 @@ favor/disfavors decay in value."
   (relative-favor observer specimen from to (enemy-find-node-func
                                              observer specimen from to)))
 
+
+;;; Simple relative favor
+(defgeneric simple-friend-favor (observer specimen from to))
+(defgeneric simple-enemy-favor (observer specimen from to))
+
+(defun get-all-relevant-users (user target from to personal-favor-qualifier)
+  (loop for friend-id in (query (:select 'target-id :from 'transaction
+                                         :where (:and (:= (user-id user) 'source-id)
+                                                      (:>= to 'timestamp)
+                                                      (:<= from 'timestamp)))
+                                :column)
+     when (and (funcall personal-favor-qualifier
+                        (personal-favor (user-id user) friend-id from to))
+               (query (:select 'target-id :from 'transaction
+                               :where (:and (:= friend-id 'source-id)
+                                            (:= (user-id target) 'target-id)
+                                            (:>= to 'timestamp)
+                                            (:<= from 'timestamp))) :single))
+     collect (find-user friend-id)))
+
+(defun simple-relevant-favor (observer specimen from to personal-favor-qualifier)
+  (let ((observer-friends (get-all-relevant-users observer specimen from to personal-favor-qualifier)))
+    (reduce #'+
+            (mapcar
+             (lambda (friend)
+               (personal-favor friend specimen from to))
+             observer-friends))))
+
+(defmethod simple-friend-favor ((observer user) (specimen user) from to)
+  (simple-relevant-favor observer specimen from to #'plusp))
+
+(defmethod simple-enemy-favor ((observer user) (specimen user) from to)
+  (simple-relevant-favor observer specimen from to #'minusp))
