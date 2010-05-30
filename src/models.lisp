@@ -71,7 +71,7 @@
   (:documentation "Registers one transaction of from ACTOR to TARGET. If FAVORP is true, then the
   transaction will be a favor. Otherwise, it will be a disfavor. Optionally, a reason may be
   provided.")
-  (:method ((actor user) (target user) &optional (description "No description."))
+  (:method ((actor user) (target user) favorp &optional (description "No description."))
     (if (user= actor target)
         (error "The actor and target of a transaction cannot be the same.")
         (insert-dao (make-instance 'transaction
@@ -93,7 +93,8 @@
   (or (find-user-by-username username)
       (insert-dao (make-instance 'user :username username))))
 
-(defparameter +unix-time-difference+ 2208988800)
+(defparameter +unix-time-difference+ 2208988800
+  "Difference in time between zero-hour in Lisp's universal time and unix time.")
 
 (defun import-transaction-from-hash (hash &optional (time-adjustment +unix-time-difference+))
   (let ((type (gethash "type" hash))
@@ -106,10 +107,12 @@
                                :target-id (user-id (ensure-user target))
                                :timestamp (+ timestamp time-adjustment)))))
 
+(defun import-json (file &optional (time-adjustment +unix-time-difference+))
+  )
 ;;;
 ;;; Exporting
 ;;;
-(defun generate-full-graph (favor-func lowball highball)
+(defun generate-full-graph (favor-func lowball highball from to)
   `(s-dot::graph ((s-dot::ratio "auto") (s-dot::ranksep "0.1") (s-dot::nodesep "0.1"))
                  ,@(loop for node in (select-dao 'user)
                       collect `(s-dot::node
@@ -117,14 +120,14 @@
                                  (s-dot::label ,(format nil "~A - WG: ~A"
                                                         (username node)
                                                         (coerce (global-favor node
-                                                                              *min-time*
-                                                                              *max-time*)
+                                                                              from
+                                                                              to)
                                                                 'float))))))
                  ,@(loop with edges = nil
                       for source in (select-dao 'user)
                       do (loop for target in (select-dao 'user)
                             unless (= (user-id source) (user-id target))
-                            do (let ((favor (coerce (funcall favor-func source target *min-time* *max-time*) 'float)))
+                            do (let ((favor (coerce (funcall favor-func source target from to) 'float)))
                                  (unless (< lowball favor highball)
                                    (push `(s-dot::edge ((s-dot::from ,(username source))
                                                         (s-dot::to ,(username target))
@@ -136,5 +139,5 @@
                                          edges))))
                       finally (return edges))))
 
-(defun export-to-png (filename favor-func lowball highball)
-  (s-dot:render-s-dot filename "png" (generate-full-graph favor-func lowball highball)))
+(defun export-to-png (filename favor-func lowball highball from to)
+  (s-dot::render-s-dot filename "png" (generate-full-graph favor-func lowball highball from to)))
