@@ -10,7 +10,7 @@
              :col-type string
              :accessor username)
    (password :initarg :password
-             :initform (error "User must be initialized with a password.")
+             :initform nil
              :col-type string
              :accessor password))
   (:metaclass dao-class)
@@ -34,6 +34,10 @@
     (find-user-by-id id))
   (:method ((id string))
     (find-user-by-username id)))
+
+(defun encrypt-string (string)
+  (ironclad:byte-array-to-hex-string
+   (ironclad:digest-sequence :sha1 string)))
 
 ;;;
 ;;; Transactions
