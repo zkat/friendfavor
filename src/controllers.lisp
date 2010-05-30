@@ -143,7 +143,7 @@ considered a valid path."
 
 (defparameter *distance-decay-factor* 1)
 
-(defun path-favor (path from to transaction-decay)
+(defun path-favor (path from to)
   "Given a path, calculates its total value. TRANSACTION-DECAY measures how quickly repeated
 favor/disfavors decay in value."
   (if (null path)
@@ -151,12 +151,12 @@ favor/disfavors decay in value."
       ;; We only care about the actual opinion of the second-to-last node in the path.
       (let ((judge (car (last (butlast path))))
             (target (car (last path))))
-        (let ((unweighted (personal-favor judge target from to transaction-decay))
+        (let ((unweighted (personal-favor judge target from to))
               (weight (* *distance-decay-factor* (1- (length path)))))
           (/ unweighted weight)))))
 
 (defun relative-favor (observer specimen from to neighbor-finder)
-  (reduce #'+ (mapcar (lambda (path) (path-favor (mapcar #'find-user path) from to *repeated-favor-decay*))
+  (reduce #'+ (mapcar (lambda (path) (path-favor (mapcar #'find-user path) from to))
                       (all-indirect-paths observer specimen neighbor-finder))))
 
 (defun transactions-from (node)
