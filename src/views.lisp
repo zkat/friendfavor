@@ -64,13 +64,13 @@
         (when user
           (<:p (<:ah (format nil "Current global favor: ~A"
                              (coerce (global-favor user
-                                                   (query (:select (:min 'timestamp) :from 'transaction) :single)
-                                                   (query (:select (:max 'timestamp) :from 'transaction) :single))
+                                                   (n-days-ago 28)
+                                                   (now))
                                      'float)))))))))
 
 (defhandler (check-favor :uri "/check-favor") "Favor checking" (favor-type target)
   (<:h1 (<:ai (format nil "~A favor for ~A: ~A" favor-type target
-                      (coerce (favor-by-type favor-type (hunchentoot:session-value 'username) target
-                                             (query (:select (:min 'timestamp) :from 'transaction) :single)
-                                             (query (:select (:max 'timestamp) :from 'transaction) :single))
+                      (coerce (favor-by-type favor-type (session-value 'username) target
+                                             (n-days-ago 28)
+                                             (now))
                               'float)))))
