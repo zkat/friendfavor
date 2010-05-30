@@ -67,3 +67,10 @@
                                                    (query (:select (:min 'timestamp) :from 'transaction) :single)
                                                    (query (:select (:max 'timestamp) :from 'transaction) :single))
                                      'float)))))))))
+
+(defhandler (check-favor :uri "/check-favor") "Favor checking" (favor-type target)
+  (<:h1 (<:ai (format nil "~A favor for ~A: ~A" favor-type target
+                      (coerce (favor-by-type favor-type (hunchentoot:session-value 'username) target
+                                             (query (:select (:min 'timestamp) :from 'transaction) :single)
+                                             (query (:select (:max 'timestamp) :from 'transaction) :single))
+                              'float)))))

@@ -259,3 +259,13 @@ favor/disfavors decay in value."
 
 (defmethod simple-enemy-favor ((observer user) (specimen user) from to)
   (simple-relevant-favor observer specimen from to #'minusp))
+
+(defun favor-by-type (type observer specimen from to)
+  (let* ((type->function '(("personal" . personal-favor)
+                           ("friend" . simple-friend-favor)
+                           ("enemy" . simple-enemy-favor)
+                           ("global" . global-favor)))
+         (function (cdr (assoc type type->function :test #'string-equal))))
+    (if function
+        (funcall function (find-user observer) (find-user specimen) from to)
+        0)))
