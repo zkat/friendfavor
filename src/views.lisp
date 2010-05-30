@@ -30,23 +30,30 @@
       (progn
         (hunchentoot:start-session)
         (<:h1 "Welcome!")
-        (<:p "Please log in.")
-        (<:form :action "/login" :method "post" :name "loginForm"
-                (<:input :type "text" :name "username" :value "Username"
-                         :onclick (ps:ps (setf (ps:@ this value) ""))
-                         :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
-                                          (setf (ps:@ this value) "Username"))))
-                (<:input :type "text" :name "password" :value "Password"
-                         :onclick (ps:ps (setf (ps:@ this value) ""))
-                         :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
-                                          (setf (ps:@ this value) "Password"))))
-                (<:input :type "submit" :value "Log In")))))
+        (<:a :href "/login" (<:ah "Log in.")))))
+
 
 (defhandler (login :uri "/login") "Log In" (username password)
-  (when hunchentoot:*session*
-    (when (and username password)
-      (setf (hunchentoot:session-value 'username) username)
-      (<:p (<:ah (format nil "Tried to log on as '~A', using '~A' as your password." username password))))))
+  (unless hunchentoot:*session*
+    (hunchentoot:start-session))
+  (if (and username password)
+      (progn (setf (hunchentoot:session-value 'username) username)
+             (<:p
+              (<:ah (format nil "Logged on as '~A', using '~A' as your password."
+                            username password)))
+             (<:p "You can return to the " (<:a :href "/" "home page") "."))
+      (progn (<:form :action "/login" :method "post" :name "loginForm"
+                     (<:input :type "text" :name "username" :value "Username"
+                              :onclick (ps:ps (setf (ps:@ this value) ""))
+                              :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
+                                               (setf (ps:@ this value) "Username"))))
+                     (<:input :type "text" :name "password" :value "Password"
+                              :onclick (ps:ps (setf (ps:@ this value) ""))
+                              :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
+                                               (setf (ps:@ this value) "Password"))))
+                     (<:input :type "submit" :value "Log In")))))
+
+
 
 (defhandler (favors :uri "/favors") "Check your favors" ()
   (<:h1 "Various favors shall appear here!")
