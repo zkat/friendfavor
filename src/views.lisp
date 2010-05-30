@@ -1,3 +1,3 @@
-(in-package :ff)
+(in-package :ffavor)
 
 ;; web pages go here

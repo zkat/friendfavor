@@ -1,4 +1,4 @@
-(in-package :ff)
+(in-package :ffavor)
 
 ;;;
 ;;; Users

@@ -1,6 +1,5 @@
-(in-package :ff)
+(in-package :ffavor)
 
-;; fancy algos go here
 ;;;
 ;;; Metrics
 ;;;
