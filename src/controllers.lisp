@@ -243,7 +243,8 @@ favor/disfavors decay in value."
                                             (:= (user-id target) 'target-id)
                                             (:>= to 'timestamp)
                                             (:<= from 'timestamp))) :single))
-     collect (find-user friend-id)))
+     do (pushnew friend-id friends)
+     finally (return (mapcar #'find-user friends))))
 
 (defun simple-relevant-favor (observer specimen from to personal-favor-qualifier)
   (let ((observer-friends (get-all-relevant-users observer specimen from to personal-favor-qualifier)))
