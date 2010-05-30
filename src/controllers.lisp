@@ -69,167 +69,6 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
                        :key #'source-id))))
 
 ;;; Relative Favor
-(defun node-neighbors (node-id neighbor-func exclusion-list)
-  "Returns a list of neighbors of NODE. A user is a neighbor iff there is a transaction from node to
-that user, and the transaction passes INCLUSION-FUNCTION. INCLUSION-FUNCTION should be a two-argument
-function that accepts a user (the current node we're getting neighbors for), and a transaction object,
-and returns a generalized boolean that answers whether that transaction's target should be in the
-list of NODE's neighbors."
-  (remove-if (lambda (user)
-               (member (user-id user) exclusion-list))
-             (funcall neighbor-func node-id)))
-
-(defun dijkstra (graph source-id neighbor-func exclusion-list)
-  "Mostly standard implementation of Dijkstra's algorithm. Returns a hash table of distances and
-a hash table with shortest paths. INCLUSION-FUNC is used by #'NODE-NEIGHBORS."
-  (let ((distances (make-hash-table))
-        (previous (make-hash-table)))
-
-    (loop for node in graph do
-         (setf (gethash node distances) nil))
-
-    ;; Distance from source to source
-    (setf (gethash source-id distances) 0)
-
-    (flet ((smallest-distance ()
-             (let (smallest smallest-value)
-               (maphash (lambda (k v)
-                          (when (find k graph)
-                            (cond ((and (numberp v)
-                                        (numberp smallest-value)
-                                        (> smallest-value v))
-                                   (setf smallest k smallest-value v))
-                                  ((and (numberp v)
-                                        (null smallest-value))
-                                   (setf smallest k smallest-value v))
-                                  ((null smallest)
-                                   (setf smallest k smallest-value v))
-                                  (t nil))))
-                        distances)
-               smallest)))
-      (loop while graph
-         for node = (smallest-distance)
-         do (setf graph (remove node graph))
-         when (gethash node distances)
-         do (loop for neighbor in (mapcar #'user-id (node-neighbors node neighbor-func exclusion-list))
-               do (let ((node-distance (gethash node distances))
-                        (neighbor-distance (gethash neighbor distances)))
-                    (when (or (not (or node-distance neighbor-distance))
-                              (and node-distance (null neighbor-distance))
-                              (< (1+ node-distance)
-                                 neighbor-distance))
-                      (setf (gethash neighbor distances) node-distance
-                            (gethash neighbor previous) node)))))
-      (values distances previous))))
-
-(defun shortest-indirect-path (source target neighbor-func exclusion-list)
-  "Finds the shortest *INDIRECT* path between SOURCE and TARGET. That is, SOURCE->TARGET is not
-considered a valid path."
-  (multiple-value-bind (distances previous)
-      (dijkstra (query (:select 'user-id :from 'user) :column) (user-id source) neighbor-func exclusion-list)
-    (declare (ignore distances))
-    (loop with list = nil
-       with u = (user-id target)
-       while (gethash u previous)
-       do (push u list)
-         (setf u (gethash u previous))
-       finally (return list))))
-
-(defun all-indirect-paths (source target neighbor-func)
-  "Finds all indirect shortest paths between SOURCE and TARGET."
-  (loop with exclusion-list = nil
-     for shortest = (shortest-indirect-path source target
-                                            neighbor-func exclusion-list)
-     while shortest
-     do (pushnew (car (last (butlast shortest))) exclusion-list)
-     collect shortest))
-
-(defparameter *distance-decay-factor* 1)
-
-(defun path-favor (path from to)
-  "Given a path, calculates its total value. TRANSACTION-DECAY measures how quickly repeated
-favor/disfavors decay in value."
-  (if (null path)
-      (error "Invalid path ~S" path)
-      ;; We only care about the actual opinion of the second-to-last node in the path.
-      (let ((judge (car (last (butlast path))))
-            (target (car (last path))))
-        (let ((unweighted (personal-favor judge target from to))
-              (weight (* *distance-decay-factor* (1- (length path)))))
-          (/ unweighted weight)))))
-
-(defun relative-favor (observer specimen from to neighbor-finder)
-  (reduce #'+ (mapcar (lambda (path) (path-favor (mapcar #'find-user path) from to))
-                      (all-indirect-paths observer specimen neighbor-finder))))
-
-(defun transactions-from (node)
-  (select-dao 'transaction (:= 'source-id (user-id node))))
-
-(defun friend-find-node-func (observer specimen from to)
-  (lambda (node-id)
-    (mapcar (lambda (txn)
-              (find-user
-               (target-id txn)))
-            (remove-duplicates
-             (remove-if-not (lambda (txn)
-                              (if (eq (user-id specimen)
-                                      (target-id txn))
-                                  t
-                                  (plusp (personal-favor (find-user (source-id txn))
-                                                         (find-user (target-id txn))
-                                                         from to))))
-                            (select-dao 'transaction
-                                        (:and (:= 'source-id node-id)
-                                              (:>= to 'timestamp)
-                                              (:<= from 'timestamp)
-                                              (:not (:and
-                                                     (:= (user-id observer) 'source-id)
-                                                     (:= (user-id specimen) 'target-id))))))
-             :key #'target-id
-             :test #'=))))
-
-(defun enemy-find-node-func (observer specimen from to)
-  (lambda (node-id)
-    (mapcar (lambda (txn)
-              (find-user
-               (target-id txn)))
-            (remove-duplicates
-             (remove-if-not (lambda (txn)
-                              (if (= (user-id observer) (source-id txn))
-                                  (unless (eq (user-id specimen)
-                                              (target-id txn))
-                                    (minusp (personal-favor (find-user (source-id txn))
-                                                            (find-user (target-id txn))
-                                                            from to)))
-                                  (if (= (user-id specimen) (target-id txn))
-                                      t
-                                      (plusp (personal-favor (find-user (source-id txn))
-                                                             (find-user (target-id txn))
-                                                             from to)))))
-                            (select-dao 'transaction
-                                        (:and (:= 'source-id node-id)
-                                              (:>= to 'timestamp)
-                                              (:<= from 'timestamp)
-                                              (:not (:and
-                                                     (:= (user-id observer) 'source-id)
-                                                     (:= (user-id specimen) 'target-id))))))
-             :key #'target-id
-             :test #'=))))
-
-(defmethod friend-favor ((observer user) (specimen user) from to)
-  (relative-favor observer specimen
-                  from to
-                  (friend-find-node-func observer specimen from to)))
-
-(defmethod enemy-favor ((observer user) (specimen user) from to)
-  (relative-favor observer specimen from to (enemy-find-node-func
-                                             observer specimen from to)))
-
-
-;;; Simple relative favor
-(defgeneric simple-friend-favor (observer specimen from to))
-(defgeneric simple-enemy-favor (observer specimen from to))
-
 (defun get-all-relevant-users (user target from to personal-favor-qualifier)
   (loop for friend-id in (query (:select 'target-id :from 'transaction
                                          :where (:and (:= (user-id user) 'source-id)
@@ -246,7 +85,7 @@ favor/disfavors decay in value."
      do (pushnew friend-id friends)
      finally (return (mapcar #'find-user friends))))
 
-(defun simple-relevant-favor (observer specimen from to personal-favor-qualifier)
+(defun relevant-favor (observer specimen from to personal-favor-qualifier)
   (let ((observer-friends (get-all-relevant-users observer specimen from to personal-favor-qualifier)))
     (reduce #'+
             (mapcar
@@ -254,16 +93,16 @@ favor/disfavors decay in value."
                (personal-favor friend specimen from to))
              observer-friends))))
 
-(defmethod simple-friend-favor ((observer user) (specimen user) from to)
-  (simple-relevant-favor observer specimen from to #'plusp))
+(defmethod friend-favor ((observer user) (specimen user) from to)
+  (relevant-favor observer specimen from to #'plusp))
 
-(defmethod simple-enemy-favor ((observer user) (specimen user) from to)
-  (simple-relevant-favor observer specimen from to #'minusp))
+(defmethod enemy-favor ((observer user) (specimen user) from to)
+  (relevant-favor observer specimen from to #'minusp))
 
 (defun favor-by-type (type observer specimen from to)
   (let* ((type->function '(("personal" . personal-favor)
-                           ("friend" . simple-friend-favor)
-                           ("enemy" . simple-enemy-favor)
+                           ("friend" . friend-favor)
+                           ("enemy" . enemy-favor)
                            ("global" . global-favor)))
          (function (cdr (assoc type type->function :test #'string-equal))))
     (if function
