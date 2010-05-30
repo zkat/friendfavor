@@ -75,6 +75,7 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
                                                       (:>= to 'timestamp)
                                                       (:<= from 'timestamp)))
                                 :column)
+     with friends = nil
      when (and (funcall personal-favor-qualifier
                         (personal-favor (user-id user) friend-id from to))
                (query (:select 'target-id :from 'transaction
