@@ -1,3 +1,3 @@
 (defpackage :friendfavor
-  (:use :cl :postmodern :alexandria)
+  (:use :cl :postmodern :alexandria :hunchentoot)
   (:nicknames :ffavor))

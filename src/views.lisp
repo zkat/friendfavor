@@ -20,21 +20,21 @@
               ,@body)))))
 
 (defmacro defhandler (description title lambda-list &body body)
-  `(hunchentoot:define-easy-handler ,description ,lambda-list
+  `(define-easy-handler ,description ,lambda-list
      (with-template ,title
        ,@body)))
 
 (defhandler (home :uri "/") "Home, Sweet Home" ()
-  (if (and hunchentoot:*session* (hunchentoot:session-value 'username))
-      (<:h1 (<:ah (format nil "Hello, ~A!" (hunchentoot:session-value 'username))))
+  (if (and *session* (session-value 'username))
+      (<:h1 (<:ah (format nil "Hello, ~A!" (session-value 'username))))
       (progn
         (<:h1 "Welcome!")
         (<:a :href "/login" (<:ah "Log in.")))))
 
 (defhandler (login :uri "/login") "Log In" (username password)
   (if (and username password)
-      (progn (hunchentoot:start-session)
-             (setf (hunchentoot:session-value 'username) username)
+      (progn (start-session)
+             (setf (session-value 'username) username)
              (<:p
               (<:ah (format nil "Logged on as '~A', using '~A' as your password."
                             username password)))
@@ -51,16 +51,16 @@
                      (<:input :type "submit" :value "Log In")))))
 
 (defhandler (logout :uri "/logout") "Log Out" ()
-  (when hunchentoot:*session*
-    (hunchentoot:remove-session hunchentoot:*session*))
-  (hunchentoot:redirect "/"))
+  (when *session*
+    (remove-session *session*))
+  (redirect "/"))
 
 (defhandler (favors :uri "/favors") "Check your favors" ()
   (<:h1 "Various favors shall appear here!")
-  (when hunchentoot:*session*
-    (when (hunchentoot:session-value 'username)
-      (<:p (<:ah (format nil "Welcome, ~A!" (hunchentoot:session-value 'username))))
-      (let ((user (find-user (hunchentoot:session-value 'username))))
+  (when *session*
+    (when (session-value 'username)
+      (<:p (<:ah (format nil "Welcome, ~A!" (session-value 'username))))
+      (let ((user (find-user (session-value 'username))))
         (when user
           (<:p (<:ah (format nil "Current global favor: ~A"
                              (coerce (global-favor user
