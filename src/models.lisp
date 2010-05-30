@@ -95,6 +95,15 @@
   (make-transaction actor target nil reason))
 
 ;;;
+;;; Initialization
+;;;
+(defun create-table (dao-class)
+  (execute (dao-table-definition dao-class)))
+
+(defun prepare-db ()
+  (mapcar #'create-table '(user transaction)))
+
+;;;
 ;;; Importing
 ;;;
 (defun ensure-user (username)
