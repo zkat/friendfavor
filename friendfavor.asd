@@ -14,7 +14,7 @@
             ((:file "package")
              (:file "utils")
              (:file "models")
-             (:file "controllers")
+             (:file "favor")
              (:file "views")
              (:file "server")))))
 
