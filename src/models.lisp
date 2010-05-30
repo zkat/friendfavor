@@ -108,7 +108,8 @@
                                :timestamp (+ timestamp time-adjustment)))))
 
 (defun import-json (filespec &optional (time-adjustment +unix-time-difference+))
-  (mapcar (lambda (txn) (import-transaction-from-hash txn time-adjustment))
+  "Imports a list of JSON objects from a file into transactions, automatically creating users."
+  (mapcar (rcurry 'import-transaction-from-hash time-adjustment)
           (with-open-file (s filespec)
             (json:parse s)))
   t)
