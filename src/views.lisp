@@ -31,9 +31,15 @@
         (hunchentoot:start-session)
         (<:h1 "Welcome!")
         (<:p "Please log in.")
-        (<:form :action "/login" :method "post"
-                (<:input :type "text" :name "username")
-                (<:input :type "text" :name "password")
+        (<:form :action "/login" :method "post" :name "loginForm"
+                (<:input :type "text" :name "username" :value "Username"
+                         :onclick (ps:ps (setf (ps:@ this value) ""))
+                         :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
+                                          (setf (ps:@ this value) "Username"))))
+                (<:input :type "text" :name "password" :value "Password"
+                         :onclick (ps:ps (setf (ps:@ this value) ""))
+                         :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
+                                          (setf (ps:@ this value) "Password"))))
                 (<:input :type "submit" :value "Log In")))))
 
 (defhandler (login :uri "/login") "Log In" (username password)
