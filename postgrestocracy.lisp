@@ -1,5 +1,7 @@
-(defpackage #:pgtocracy
-  (:use :cl :postmodern))
+(defpackage #:postgrestocracy
+  (:use :cl :postmodern)
+  (:nicknames :pgtocracy))
+
 (in-package :pgtocracy)
 
 (declaim (optimize (debug 3)))
