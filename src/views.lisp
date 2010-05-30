@@ -28,16 +28,13 @@
   (if (and hunchentoot:*session* (hunchentoot:session-value 'username))
       (<:h1 (<:ah (format nil "Hello, ~A!" (hunchentoot:session-value 'username))))
       (progn
-        (hunchentoot:start-session)
         (<:h1 "Welcome!")
         (<:a :href "/login" (<:ah "Log in.")))))
 
-
 (defhandler (login :uri "/login") "Log In" (username password)
-  (unless hunchentoot:*session*
-    (hunchentoot:start-session))
   (if (and username password)
-      (progn (setf (hunchentoot:session-value 'username) username)
+      (progn (hunchentoot:start-session)
+             (setf (hunchentoot:session-value 'username) username)
              (<:p
               (<:ah (format nil "Logged on as '~A', using '~A' as your password."
                             username password)))
@@ -53,7 +50,10 @@
                                                (setf (ps:@ this value) "Password"))))
                      (<:input :type "submit" :value "Log In")))))
 
-
+(defhandler (logout :uri "/logout") "Log Out" ()
+  (when hunchentoot:*session*
+    (hunchentoot:remove-session hunchentoot:*session*))
+  (hunchentoot:redirect "/"))
 
 (defhandler (favors :uri "/favors") "Check your favors" ()
   (<:h1 "Various favors shall appear here!")
