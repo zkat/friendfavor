@@ -7,10 +7,28 @@
      (<:html
       (<:head
        (<:meta :http-equiv "Content-type" :content "text/html;charset=UTF-8")
-       (<:title ,title)
+       (<:title (<:ah ,title))
        (<:link :rel "stylesheet" :type "text/css" :href "styles.css"))
-      (<:body ,@body))))
+      (<:body
+       (<:div :id "links" :class "menu"
+              (<:ul
+               (loop for (url name) in '(("/"  "Home")
+                                         ("/login" "Log In")
+                                         ("/favors" "Check Favors"))
+                  do (<:li (<:a :href url (<:ah name))))))
+       (<:div :id "content" :class "content"
+              ,@body)))))
 
-(hunchentoot:define-easy-handler (home :uri "/") ()
-  (with-template "Home, Sweet Home"
-    (<:h1 "Hello, world!")))
+(defmacro defhandler (description title lambda-list &body body)
+  `(hunchentoot:define-easy-handler ,description ,lambda-list
+     (with-template ,title
+       ,@body)))
+
+(defhandler (home :uri "/") "Home, Sweet Home" ()
+  (<:h1 "Hello, world!"))
+
+(defhandler (login :uri "/login") "Log In" ()
+  (<:p "Nothing to see here. Move along."))
+
+(defhandler (favors :uri "/favors") "Check your favors" ()
+  (<:h1 "Various favors shall appear here!"))
