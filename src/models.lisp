@@ -107,8 +107,12 @@
                                :target-id (user-id (ensure-user target))
                                :timestamp (+ timestamp time-adjustment)))))
 
-(defun import-json (file &optional (time-adjustment +unix-time-difference+))
-  )
+(defun import-json (filespec &optional (time-adjustment +unix-time-difference+))
+  (mapcar (lambda (txn) (import-transaction-from-hash txn time-adjustment))
+          (with-open-file (s filespec)
+            (json:parse s)))
+  t)
+
 ;;;
 ;;; Exporting
 ;;;
