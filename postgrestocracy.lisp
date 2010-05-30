@@ -280,7 +280,7 @@ considered a valid path."
 (defun friend-find-node-func (observer specimen from to)
   (lambda (node-id)
     (mapcar (lambda (txn)
-              (find-user 
+              (find-user
                (target-id txn)))
             (remove-duplicates
              (remove-if-not (lambda (txn)
@@ -299,7 +299,7 @@ considered a valid path."
                                                      (:= (user-id specimen) 'target-id))))))
              :key #'target-id
              :test #'=)))
-  
+
   #+nil(lambda (node txn)
          (and (eq node (slot-value txn 'source))
               (if (eq specimen (slot-value txn 'target))
@@ -341,7 +341,7 @@ considered a valid path."
                  ,@(loop for node in (select-dao 'user)
                       collect `(s-dot::node
                                 ((s-dot::id ,(username node))
-                                 (s-dot::label ,(format nil "~A - WG: ~A" 
+                                 (s-dot::label ,(format nil "~A - WG: ~A"
                                                         (username node)
                                                         (coerce (global-favor node
                                                                               *min-time*
