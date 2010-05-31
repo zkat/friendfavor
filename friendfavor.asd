@@ -15,7 +15,7 @@
              (:file "utils")
              (:file "models")
              (:file "favor")
-             (:file "views")
+             (:file "handlers")
              (:file "server")))))
 
 #+nil(asdf:defsystem meritocracy-tests
