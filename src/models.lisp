@@ -130,36 +130,3 @@
           (with-open-file (s filespec)
             (json:parse s)))
   t)
-
-;;;
-;;; Exporting
-;;;
-(defun generate-full-graph (favor-func lowball highball from to)
-  `(s-dot::graph ((s-dot::ratio "auto") (s-dot::ranksep "0.1") (s-dot::nodesep "0.1"))
-                 ,@(loop for node in (select-dao 'user)
-                      collect `(s-dot::node
-                                ((s-dot::id ,(username node))
-                                 (s-dot::label ,(format nil "~A - WG: ~A"
-                                                        (username node)
-                                                        (coerce (global-favor node
-                                                                              from
-                                                                              to)
-                                                                'float))))))
-                 ,@(loop with edges = nil
-                      for source in (select-dao 'user)
-                      do (loop for target in (select-dao 'user)
-                            unless (= (user-id source) (user-id target))
-                            do (let ((favor (coerce (funcall favor-func source target from to) 'float)))
-                                 (unless (< lowball favor highball)
-                                   (push `(s-dot::edge ((s-dot::from ,(username source))
-                                                        (s-dot::to ,(username target))
-                                                        (s-dot::label ,(princ-to-string favor))
-                                                        (s-dot::color ,(if (plusp favor)
-                                                                           "#348017" ;; green
-                                                                           "#C11B17" ;; red
-                                                                           ))))
-                                         edges))))
-                      finally (return edges))))
-
-(defun export-to-png (filename favor-func lowball highball from to)
-  (s-dot::render-s-dot filename "png" (generate-full-graph favor-func lowball highball from to)))
