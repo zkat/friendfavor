@@ -68,9 +68,15 @@
                                                    (now))
                                      'float)))))))))
 
-(defhandler (check-favor :uri "/check-favor") "Favor checking" (favor-type target)
-  (<:h1 (<:ai (format nil "~A favor for ~A: ~A" favor-type target
-                      (coerce (favor-by-type favor-type (session-value 'username) target
-                                             (n-days-ago 28)
-                                             (now))
-                              'float)))))
+(define-easy-handler (check-favor :uri "/check-favor") (favor-type source target)
+  (setf (content-type*) "application/json")
+  (let ((from (n-days-ago 28))
+        (to (now)))
+    (with-output-to-string (s)
+      (json:encode (mkhash "source" source
+                           "target" target
+                           "type" favor-type
+                           "from" (- from +unix-time-difference+)
+                           "to" (- to +unix-time-difference+)
+                           "favor" (favor-by-type favor-type source target from to))
+                   s))))

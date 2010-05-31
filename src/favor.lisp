@@ -100,11 +100,15 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
 (defmethod enemy-favor ((observer user) (specimen user) from to)
   (relevant-favor observer specimen from to #'minusp))
 
+(defun 4-arg-global-favor (source target from to)
+  (declare (ignore source))
+  (global-favor target from to))
+
 (defun favor-by-type (type observer specimen from to)
   (let* ((type->function '(("personal" . personal-favor)
                            ("friend" . friend-favor)
                            ("enemy" . enemy-favor)
-                           ("global" . global-favor)))
+                           ("global" . 4-arg-global-favor)))
          (function (cdr (assoc type type->function :test #'string-equal))))
     (if function
         (funcall function (find-user observer) (find-user specimen) from to)
