@@ -1,0 +1,36 @@
+code {
+    background-color: black;
+    color: white;
+}
+
+body {
+    background-color: white;
+}
+
+h2 {
+    text-align:left;
+    padding-left:90px;
+}
+
+.content {
+    min-width:400px;
+    max-width:800px;
+    min-height:400px;
+    margin-left:90px;
+    padding-left:10px;
+    padding-bottom:15px;
+    background-color: white;
+    border:1px solid black;
+    text-align: left;
+    left:10%;
+    font-size:14px;
+}
+
+.menu {
+    float:left;
+    width:75px;
+    margin-top:3%;
+    padding:20px 5px 30px 5px;
+    font-size:16px;
+    background-color:white;
+}
