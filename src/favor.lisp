@@ -144,5 +144,29 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
                                          edges))))
                       finally (return edges))))
 
+(defun generate-user-graph (source-user favor-func from to)
+  (let ((relevant-user-alist (loop for target in (select-dao 'user)
+                                for favor-amount = (funcall favor-func source-user target from to)
+                                unless (zerop favor-amount)
+                                collect (cons target (coerce favor-amount 'float)))))
+    `(s-dot::graph ((s-dot::ratio "auto") (s-dot::ranksep "0.1") (s-dot::nodesep "0.1"))
+                   ,@(loop for (node . ignore) in (cons (cons source-user 0.0) relevant-user-alist)
+                        collect `(s-dot::node
+                                  ((s-dot::id ,(username node))
+                                   (s-dot::label ,(format nil "~A - WG: ~A"
+                                                          (username node)
+                                                          (coerce (global-favor node
+                                                                                from
+                                                                                to)
+                                                                  'float))))))
+                   ,@(loop for (node . favor-value) in relevant-user-alist
+                        collect `(s-dot::edge ((s-dot::from ,(username source-user))
+                                               (s-dot::to ,(username node))
+                                               (s-dot::label ,(princ-to-string favor-value))
+                                               (s-dot::color ,(if (plusp favor-value)
+                                                                  "#348017" ;; green
+                                                                  "#C11B17" ;; red
+                                                                  ))))))))
+
 (defun export-to-png (filename favor-func lowball highball from to)
   (s-dot::render-s-dot filename "png" (generate-full-graph favor-func lowball highball from to)))
