@@ -1,7 +1,6 @@
 (in-package :ffavor)
 
 (defvar *title*)
-;; web pages go here
 (defmacro with-template (title &body body)
   `(yaclml:with-yaclml-output-to-string
      (<:html
