@@ -291,3 +291,8 @@ A. Not necessarily. It _could_ work that way, but perhaps a better way to do it 
    a position, and making it much lower than the requirements for initially acquiring it. This would
    relieve a significant amount of pressure, but still set a boundary after which said character
    would be removed.
+
+Q. What are all the rankings?
+
+A. From worst to best: dysmal, terrible, bad, poor, lackluster, neutral, lukewarm, good, great,
+   excellent, and fantastic.
