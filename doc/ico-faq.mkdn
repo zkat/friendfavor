@@ -1,5 +1,5 @@
-The Short Version
-=================
+Introduction
+============
 
 This is an alternative system for handling favor/disfavor in ICO's world. It's designed to be able
 to do the things the current favor system is meant to do, but more -- and without the drawbacks.
