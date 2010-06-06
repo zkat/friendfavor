@@ -40,11 +40,11 @@
              (<:p "You can return to the " (<:a :href "/" "home page") "."))
       (progn (<:form :action "/login" :method "post" :name "loginForm"
                      (<:input :type "text" :name "username" :value "Username"
-                              :onclick (ps:ps (setf (ps:@ this value) ""))
+                              :onfocus (ps:ps (setf (ps:@ this value) ""))
                               :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
                                                (setf (ps:@ this value) "Username"))))
                      (<:input :type "text" :name "password" :value "Password"
-                              :onclick (ps:ps (setf (ps:@ this value) ""))
+                              :onfocus (ps:ps (setf (ps:@ this value) ""))
                               :onblur (ps:ps (unless (> (length (ps:@ this value)) 0)
                                                (setf (ps:@ this value) "Password"))))
                      (<:input :type "submit" :value "Log In")))))
