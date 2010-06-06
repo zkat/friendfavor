@@ -49,7 +49,7 @@ positive connections, think of SPECIMEN."))
                                     (favor-count judge target from to)))
         (disfavor-value (geometric-sum 1 *repeated-favor-decay*
                                        (disfavor-count judge target from to))))
-    (- favor-value disfavor-value)))
+    (values (* 10 (+ 5 (- favor-value disfavor-value))) 1)))
 
 (defmethod personal-favor ((judge user) (target user) from to)
   "Calculates the personal favor from JUDGE to TARGET. *REPEATED-FAVOR-DECAY* represents how quickly repeated
@@ -59,14 +59,20 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
 
 ;;; Global Favor
 (defmethod global-favor ((user user) from to)
-  (reduce #'+ (mapcar (lambda (txn)
-                        (personal-favor (find-user (source-id txn))
-                                        user from to))
-                      (remove-duplicates
-                       (select-dao 'transaction (:and (:> 'timestamp from)
-                                                      (:> to 'timestamp)
-                                                      (:= (user-id user) 'target-id)))
-                       :key #'source-id))))
+  (let* ((txns (remove-duplicates
+                (select-dao 'transaction (:and (:> 'timestamp from)
+                                               (:> to 'timestamp)
+                                               (:= (user-id user) 'target-id)))
+                :key #'source-id))
+         (n-txns (length txns)))
+    (if (zerop n-txns)
+        (values 50 0)
+        (values (/ (reduce #'+ (mapcar (lambda (txn)
+                                         (personal-favor (find-user (source-id txn))
+                                                         user from to))
+                                       txns))
+                   n-txns)
+                n-txns))))
 
 ;;; Relative Favor
 (defun get-all-relevant-users (user target from to personal-favor-qualifier)
@@ -87,12 +93,17 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
      finally (return (mapcar #'find-user friends))))
 
 (defun relevant-favor (observer specimen from to personal-favor-qualifier)
-  (let ((observer-friends (get-all-relevant-users observer specimen from to personal-favor-qualifier)))
-    (reduce #'+
-            (mapcar
-             (lambda (friend)
-               (personal-favor friend specimen from to))
-             observer-friends))))
+  (let* ((observer-friends (get-all-relevant-users observer specimen from to personal-favor-qualifier))
+         (n-observers (length observer-friends)))
+    (if (zerop n-observers)
+        (values 50 0)
+        (values (/ (reduce #'+
+                           (mapcar
+                            (lambda (friend)
+                              (personal-favor friend specimen from to))
+                            observer-friends))
+                   n-observers)
+                n-observers))))
 
 (defmethod friend-favor ((observer user) (specimen user) from to)
   (relevant-favor observer specimen from to #'plusp))
@@ -112,7 +123,54 @@ eventually converge on a single number. When > 1, favor can grow unbounded into 
          (function (cdr (assoc type type->function :test #'string-equal))))
     (if function
         (funcall function (find-user observer) (find-user specimen) from to)
-        0)))
+        (values 0))))
+
+(defun humane-favor-by-type (type source target from to)
+  (multiple-value-bind (favor n-judges)
+      (favor-by-type type source target from to)
+    (if (plusp n-judges)
+        (favor->prose favor type target n-judges)
+        (let ((preamble (cond ((string-equal type "friend")
+                               "No one you like has")
+                              ((string-equal type "enemy")
+                               "No one you dislike has")
+                              ((string-equal type "personal")
+                               "You don't really have"))))
+          (format nil "~A anything to say about ~A." preamble target)))))
+
+(defun favor->prose (favor type target n-judges)
+  (format nil "According to ~A, ~A's reputation is ~A."
+          (cond ((string-equal type "friend")
+                 (format nil "~A ~A you like" n-judges (if (> n-judges 1) "people" "person")))
+                ((string-equal type "enemy")
+                 (format nil "~A ~A you dislike" n-judges (if (> n-judges 1) "people" "person")))
+                ((string-equal type "personal")
+                 "your personal opinion"))
+          target (favor-percentage->rating favor)))
+
+(defun favor-percentage->rating (amount)
+  (cond ((<= 0 amount 4)
+         "dysmal")
+        ((<= 5 amount 14)
+         "terrible")
+        ((<= 15 amount 24)
+         "bad")
+        ((<= 25 amount 34)
+         "poor")
+        ((<= 35 amount 44)
+         "lackluster")
+        ((<= 45 amount 55)
+         "neutral")
+        ((<= 56 amount 65)
+         "lukewarm")
+        ((<= 66 amount 75)
+         "positive")
+        ((<= 76 amount 85)
+         "very good")
+        ((<= 86 amount 95)
+         "excellent")
+        ((<= 96 amount 100)
+         "astonishingly good")))
 
 ;;;
 ;;; Exporting

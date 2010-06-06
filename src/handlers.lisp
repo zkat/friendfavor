@@ -54,28 +54,32 @@
     (remove-session *session*))
   (redirect "/"))
 
-(defhandler (favors :uri "/favors") "Check your favors" ()
-  (<:h1 "Various favors shall appear here!")
+(defhandler (favors :uri "/favor") "Check your favor" (favor-type source target)
   (when *session*
     (when (session-value 'username)
       (<:p (<:ah (format nil "Welcome, ~A!" (session-value 'username))))
       (let ((user (find-user (session-value 'username))))
         (when user
-          (<:p (<:ah (format nil "Current global favor: ~A"
+          (<:p (<:ah (format nil "Current global favor: ~1,2f%"
                              (coerce (global-favor user
-                                                   (n-days-ago 28)
+                                                   (n-days-ago 60)
                                                    (now))
-                                     'float)))))))))
+                                     'float)))))
+        (when (and favor-type source target)
+          (<:p (<:ah (humane-favor-by-type favor-type source target (n-days-ago 60) (now)))))))))
 
-(define-easy-handler (check-favor :uri "/check-favor") (favor-type source target)
+(define-easy-handler (favor->json :uri "/favor.json") (favor-type source target)
   (setf (content-type*) "application/json")
-  (let ((from (n-days-ago 28))
+  (let ((from (n-days-ago 60))
         (to (now)))
-    (with-output-to-string (s)
-      (json:encode (mkhash "source" source
-                           "target" target
-                           "type" favor-type
-                           "from" (- from +unix-time-difference+)
-                           "to" (- to +unix-time-difference+)
-                           "favor" (favor-by-type favor-type source target from to))
-                   s))))
+    (multiple-value-bind (favor n-judges)
+        (favor-by-type favor-type source target from to)
+      (with-output-to-string (s)
+        (json:encode (mkhash "source" source
+                             "target" target
+                             "type" favor-type
+                             "from" (- from +unix-time-difference+)
+                             "to" (- to +unix-time-difference+)
+                             "favor" favor
+                             "n-judges" n-judges)
+                     s)))))
