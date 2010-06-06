@@ -1,0 +1,293 @@
+The Short Version
+=================
+
+This is an alternative system for handling favor/disfavor in ICO's world. It's designed to be able
+to do the things the current favor system is meant to do, but more -- and without the drawbacks.
+
+The basic idea is that you give favor/disfavor as you do now. Instead of accumulating favor as with
+the current system, though, a rating is derived based on the opinions of your _friends_ (defined as
+people who you have a net positive favor value for).
+
+You get one extra command: @check-favor (aliased @cf). Using @cf will tell you what your friends
+think of someone, and how many friends that opinion is based on. Like so:
+
+    > @cf Azrael
+    According to 10 people you like, Azrael's reputation is very good.
+    
+Or, for a rival character:
+
+    > @cf Meerclar
+    According to 2 people you like, Meerclar's reputation is lackluster.
+
+You can then base your decision on the overall opinion of your friends.
+
+This system is further hooked into the game by passive NPCs who simply connect themselves into the
+system to reap its benefits. For example, a certain Guild can @favor all its members, thus basing
+its own @cf value on the opinions of its members.
+
+Assuming Alice is a character who wants to get recruited into House Rinaldi, the representing House
+Rinaldi would @favor all active members of the House, then:
+
+    > @cf Alice
+    According to 15 people you like, Alice's reputation is lukewarm.
+    
+This could be done internally, as well, to evaluate whether a certain character receives a promotion
+over another:
+
+    > @cf CandidateA
+    According to 15 people you like, CandidateA's reputation is positive.
+    
+    > @cf CandidateB
+    According to 15 people you like, CandidateB's reputation is neutral.
+    
+In this example, CandidateA would be more likely to gain a promotion (provided other aspects of the
+character did not prevent this from happening).
+
+On top of that, more concrete requirements may be placed on certain promotions in order to make it
+more obvious both to staff and players, and hopefully remove some arbitrariness from each promotion
+decision.
+
+For example, reaching second-level rank in House Avoirdupois might require that you have an overall
+favor rating of 'positive' with the house, based on the opinions of at least 3 current
+members.
+
+One prominent feature of this system is its resistance to certain key types of abuse. It is very
+difficult for a true rival to ruin anyone's reputation in a system such as this.
+
+    You inhabit EvilVillain.
+    > @disfavor GoodieTwoShoes "Sneezed the wrong way."
+    > @disfavor GoodieTwoShoes "Totally looked at that noble wrong. What a snob!"
+    > @disfavor GoodieTwoShoes "Eats babies and steals music from record companies."
+
+This will have essentially no effect anywhere that matters, except in the case where EvilVillain
+also happens to be a very well-liked member of a House or Guild GoodieTwoShoes might be trying to
+join. If that is the case, EvilVillain's heavy @disfavor must still be enough to counteract the
+overall favor of everyone else in his/her house. The end result is that someone's favor is based on
+the average opinions of those the observer trusts, and extreme opinions are very hard to get unless
+there's plenty of agreement.
+
+Finally, this system implements a weight in order to control _how much_ a @favor/@disfavor is
+actually worth. Instead of requiring the staff to rate a certain @favor/@disfavor for its perceived
+worth, _all_ favors are accepted, but each new favor _from the same person_ within a certain time
+period is worth less and less, eventually converging on an infinetesimal amount.
+
+Put simply, it's very easy to get from neutral, to the first positive favor level ("lukewarm", in
+this case), but it takes more @favors to get to the next level, and even more to reach the one after
+that. It's then very difficult to actually reach the ultimate favor level ("astonishingly good"),
+unless someone is REALLY REALLY REALLY liked by everyone you know.
+
+The favor presented here isn't the whole story either, but it's the most important type, and the one
+of (probably) the most use. There are three other types of favor rating, and other features of the
+favor system that are worth examining.
+
+The rest of this document includes a rationale, a more in-depth description of the system's design
+(and its other features), and a detailed FAQ that will hopefully address any other questions.
+
+Rationale
+=========
+
+The idea of social clout is not a new one. Every time we witness an action, it shapes our opinion of
+someone. When prompted, we sometimes let others know about our opinions, and they can sometimes use
+that to make (somewhat) informed decisions about trust, preference, or such.
+
+Thus, through personal opinion and gossip, we are able to shape the opinions of others, and spread
+information about people's actions.
+
+In a game such as ICO, this is desirable, but efforts to measure and use social clout are somewhat
+dampened by a very important fact about the world: A large part of it is controlled, or at least
+influenced, by NPCs, either actual talking dolls (shopkeepers), or 'bluebooked' NPCs that exist only
+in theory (Guild and House leadership).
+
+What we want, then, is some system of converting _players'_ feelings and opinions -- or at least the
+gossip they're willing to spread -- into something the game can understand. Data. For this reason,
+ICO recently introduced a favor system into the game, in an attempt to collect data from players
+that could then influence the usually NPC/staff-driven part of the game.
+
+With the current system, all players are prompted to use the @favor or @disfavor commands,
+directing favor (positive) or disfavor (negative), towards a _character_. This favor/disfavor would
+then be reviewed by staff, and, if approved, granted a numeric value (again, by staff). On top of
+this, a few restrictions were implemented as to who was allowed to grant favor to whom (segregating
+nobles and commoners). 
+
+After certain periods of time, characters seeking promotions, hirings, etc would then have their
+reputations examined, and then enjoy the benefits -- or the consequences -- of the reputation they
+gathered, globally, over that time period. At the end of each time period, the favor would be reset
+and the cycle would start over.
+
+Unfortunately, this system caused some controversy due to various characteristics (among others):
+
+* Rival groups could band together and 'bombard' each other with negative favor in order to damage
+  each others' reputation.
+
+* Even sneezing the wrong way around someone could potentially gain you very serious @disfavor. This
+  led to people feeling afraid to fully roleplay their characters in order to avoid the consequences
+  of being adventurous.
+
+* Related to the above: There is no practical way of checking your general reputation. A system
+  exists where (dis)favors are turned into rumors, which beggars will then share, but this is not a
+  very informative system as far as the big picture goes.
+
+* Because of the staff-review system, there's an added level of unknown arbitrariness (the actual
+  amount granted per favor, and whether a certain favor was accepted or not, is unknown to players,
+  unless they happen upon it when a beggar happens to mention it). Much like the United States'
+  electoral system, then, an individual character's @favor/@disfavor matters very little -- staff
+  has a very active, and final, say in the value of a favor or disfavor.
+  
+* Also because of the staff-reviewed aspect of the system, it can take a while for favors to be
+  accepted. Often, there even needs to be a back-and-forth between players and staff members in
+  order to clarify a submission. This puts undue strain on staff resources, and complicates the
+  general functioning of the system.
+  
+* To be promoted, you need a sponsor. The issues with who is allowed to sponsor someone, and what
+  happens in various situations (such as when the sponsor is demoted, or goes missing, after a
+  promotion) are somewhat complicated.
+
+The favor system described in this document attempts to address these issues, while still trying to
+reap the benefits (and getting some new ones!)
+
+Basics
+======
+
+This favor system measures someone's 'social clout'. That is, how highly certain groups of people
+think of a particular person. It works by collecting transactions, which then relate one character
+to another. A key part of this favor system is 'relative' favor, which uses a character's existing
+connections in order to measure someone's reputation. One way to think about this is that, in a
+real-world social environment, it makes little sense to ask random strangers what their opinion of
+something is, but you will most likely take into account the opinions of those you personally think
+highly of.
+
+This system, like the existing one, has two kinds of transactions: favors, and disfavors. Each
+should be granted according to perceived merits of certain actions, although current general
+feelings may be expressed as well without reducing the usefulness and accuracy of the system.
+
+When calculating favor, a time bound is used, and favor is only measured within those bounds.
+
+Furthermore, the value of each successive favor or disfavor is reduced. The first favor is the most
+valuable, but each will be worth less and less.
+
+Once transactions are generated by giving favor or disfavor, there are 4 types of rating:
+
+1. Personal favor -
+   Your _personal_ opinion of someone (the net favor value, based on your @favor and @disfavor)
+
+2. Friend favor -
+   This measure is based on the average opinion of people who you have positive personal favor
+   towards.
+
+3. Enemy favor -
+   The opposide of friend favor, this type is based on the opinions of people who you have negative
+   personal favor for.
+
+4. Global Favor -
+   The overall reputation of someone, without taking into account your own relationships. This is
+   the least valuable measurement, but can serve as an interesting reference. This is simply an
+   average of all existing opinions for that character.
+
+As mentioned before, favor and disfavor are time-bound. That means that as time goes on, favor
+will go away. This creates the need to continue to perform actions that will gain you favor,
+as well as to continue expressing your opinion on someone.
+
+Beyond this, very few restrictions are placed on the system: Anyone may grant favor or disfavor to
+anyone. This includes nobles and commoners granting mutual favor/disfavor.
+
+FAQ
+===
+
+Q. Can a group of enemies suddenly disfavor me and make me lose reputation and thus harm me?
+
+A. An isolated group of enemies will not necessarily harm you. If they happen to be good friends
+   with someone who you're hoping will promote you, then you will be in trouble, but if they're
+   in a separate crowd, their opinion will be irrelevant.
+   This means that it is completely reasonable for someone to gain a promotion, provided
+   they suck up to the right people. Being favored by 5 close friends can topple the hateful
+   efforts of several hundreds.
+
+Q. How do NPCs form opinions based on relative ratings?
+
+A. PCs presumably belong to some group in-game, such as a guild.  If this association can be
+   made, all members of that group can granted favor by an NPC representing that guild, which
+   would connect it to the system as a whole, and give the NPC full access to player-generated
+   favor.
+   For example, there can be an NPC representing the Cooks' Guild. All members of the guild are
+   automatically given regular dosages of favor upon joining. The Cooks' Guild NPC will then be
+   able to use the overall opinion of all Cooks' Guild PCs when choosing whether a certain
+   character has gained enough favor to join, or to receive a promotion.
+
+Q. Can I favor/disfavor group NPCs?
+
+A. Sure. This could be used to express your personal opinion of the 'abstract' part of a
+   guild/team/etc. It is still be good, though, to generate favor/disfavor specific to the PC
+   members. Favoring/disfavoring an NPC does not automatically apply to all members of that
+   guild/team/etc.
+
+Q. Is favor/disfavor private?
+
+A. No. Favor/disfavor is meant to express *publicly-held* views and opinions, and as such
+   remains public at all times. You should not @favor/@disfavor someone if you do not wish to suffer
+   the consequences of news getting out -- just like with gossip.
+
+Q. Can I lie with favor/disfavor?
+
+A. You could. It's reasonable to try to slander someone publicly, or lie about their merits,
+   but don't expect people to think very highly of you if they believe you're lying. Remember
+   that favor/disfavor expresses your public opinion. If people see that you're spreading lies
+   and slander, it's very likely you will be disfavored very quickly, possibly even by those
+   close to you, and a record of these disfavors will remain public. There is no need for any
+   other enforcement of truth.
+
+Q. Can commoners/slaves start disfavoring nobles and making them lose rank or vice-versa?
+
+A. Not unless they have the right connections. A Noble House does not care about the opinions of
+   commoners and slaves (unless they suddenly start @favoring a bunch of commoners!). Thus, while
+   those commoners' friends might start having a lower opinion of a particular Noble, the Noble will
+   not be affected unless those commoners happen to be exceptionally well-connected.
+
+Q. Can I just give everyone favor and become famous?
+
+A. No, favor works only in one direction. Giving favor to someone does not make them favor you.
+
+Q. The disfavor I gave someone a month ago just expired, but I still hate them for doing that
+   thing they did. Can I just be catty and keep disfavoring them until I get bored of doing so?
+   
+A. Sure. If your feelings are still negative, you can continue to give disfavor.
+   While it's nice when a particular favor/disfavor is associated with an event,
+   it's really a measure of what your opinion of that character is.
+
+Q. Someone disfavored me and I don't like them for doing so. Can I disfavor them?
+
+A. Sure, if you find out that someone has been saying nasty things about you, it's only fair
+   that you can declare your dislike for that certain someone. You can, though, expect
+   retaliation from others if they think the disfavor given to you was earned, and that you are
+   just being a brat for retaliating for it.
+
+Q. Does this implement something like an 'evil rank' that villain characters can use?
+
+A. Not explicitly, but yes. Again, it's about connections. You can identify villains either by
+   checking a 'righteous' group's opinion of them, or by simply belonging to a villain group and
+   checking on your mates. This system can also be useful for seeing rivalries between villains.
+
+Q. Does this system prevent other kinds of promotions/demotions from happening?
+
+A. Not necessarily. It can work *with* them, but it does not need to be the One True Rule for
+   evaluating promotions or demotions. It's perfectly reasonable that other in-game rules would
+   promote a player that would not otherwise have earned that place. Likewise, it's possible for
+   someone to simply be given a promotion because their connections would be valuable to
+   someone. I might try to get X to join my guild because X has good friends in high places, and
+   I believe that if X favors me (because X is part of my guild now), I will receive benefits
+   from the higher favor his friends see from me.
+
+Q. Do I need a sponsor in this system?
+
+A. No, sponsorship is built right into the relative favor system, and thus, sponsors become
+   unnecessary. Having high favor within a certain group of characters directly correlates
+   to how much that group as a whole likes you, even if other groups have a completely
+   different opinion of you.
+
+Q. How do demotions work? Do I lose my rank automatically unless I keep kissing up to people?
+
+A. Not necessarily. It _could_ work that way, but perhaps a better way to do it would be to only
+   re-evaluate someone if there's already a reason to want them out of the position (a rival vying
+   to bump them off, for example). Another possibility is to set a 'minimum requirement' for keeping
+   a position, and making it much lower than the requirements for initially acquiring it. This would
+   relieve a significant amount of pressure, but still set a boundary after which said character
+   would be removed.
